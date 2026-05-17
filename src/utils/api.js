@@ -1,5 +1,5 @@
 const API_URL     = 'https://script.google.com/macros/s/AKfycbyj8UTgncnMmmz4ERZIN49PiHqPOS2GnBABOKgQ9WEirPh8aHSt0tdCcKkv2nUqeKt9/exec'
-const LOCAL_AGENT = 'http://localhost:3001'
+const LOCAL_AGENT = 'https://distributions-marijuana-enb-inn.trycloudflare.com'
 
 // Send order text data to GAS → saves to Sheets instantly
 function gasGet(params) {
@@ -26,7 +26,17 @@ async function sendToLocalAgent(orderId, fileName, pdfBase64, screenshotBase64) 
 export async function submitOrder(orderData) {
   const orderId = 'XB' + (1000 + Math.floor(Math.random() * 9000))
 
-  // Step 1: Save order text data → Sheets (fast GET request)
+  // Step 2: Send PDF + screenshot to local agent FIRST (await it)
+  if (orderData.pdfBase64) {
+    await sendToLocalAgent(
+      orderId,
+      orderData.fileName,
+      orderData.pdfBase64 || '',
+      orderData.screenshotBase64 || ''
+    )
+  }
+
+  // Step 3: Save order to Sheets AFTER PDF is ready on local agent
   await gasGet({
     action:        'saveOrder',
     orderId,
@@ -39,15 +49,6 @@ export async function submitOrder(orderData) {
     amount:        String(orderData.amount),
     transactionId: orderData.transactionId,
   })
-
-  // Step 2: Send PDF + screenshot to local agent in background (don't await)
-  // This runs after the user sees success screen
-  sendToLocalAgent(
-    orderId,
-    orderData.fileName,
-    orderData.pdfBase64 || '',
-    orderData.screenshotBase64 || ''
-  )
 
   return { success: true, orderId }
 }

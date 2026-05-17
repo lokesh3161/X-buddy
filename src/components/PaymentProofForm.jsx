@@ -38,7 +38,7 @@ export default function PaymentProofForm({ orderMeta, onSuccess, onClose }) {
     try {
       const screenshotBase64 = await fileToBase64(screenshot)
 
-      setLoadingMsg('Saving order...')
+      setLoadingMsg('Sending PDF to printer...')
       const result = await submitOrder({
         name: phone.trim(),
         fileName: orderMeta.fileName,
