@@ -1,26 +1,91 @@
 import { useEffect, useState } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 
+const API_URL =
+  'https://script.google.com/macros/s/AKfycby_n36thdVKW5jET8BPQ4bKoopXOVrYVfvO2RbsycM-Ip2Tym29iEWCkYBL1uYYJBwQ/exec'
+
+// How long to wait before showing "server offline" warning (30 seconds)
+const OFFLINE_TIMEOUT_MS = 30000
+// Poll every 5 seconds
+const POLL_INTERVAL_MS = 5000
+
+// Map print status from Sheets to stage index
+function statusToStage(status) {
+  switch (status) {
+    case 'Waiting':   return 0
+    case 'Printing':  return 2
+    case 'Printed':   return 3
+    default:          return 0
+  }
+}
+
 const STAGES = [
-  { id: 'queued',    label: 'Queued',    icon: '📋', desc: 'Your document is in the print queue',  duration: 1500 },
-  { id: 'sending',  label: 'Sending',   icon: '📡', desc: 'Sending document to printer...',        duration: 2000 },
-  { id: 'printing', label: 'Printing',  icon: '🖨️', desc: 'Printing your document...',             duration: 3000 },
-  { id: 'done',     label: 'Completed', icon: '✅', desc: 'Your document has been printed!',       duration: 0    },
+  { id: 'queued',    label: 'Queued',    icon: '📋', desc: 'Your document is in the print queue'  },
+  { id: 'sending',  label: 'Sending',   icon: '📡', desc: 'Sending document to printer...'       },
+  { id: 'printing', label: 'Printing',  icon: '🖨️', desc: 'Printing your document...'            },
+  { id: 'done',     label: 'Completed', icon: '✅', desc: 'Your document has been printed!'      },
 ]
 
 export default function PrintStatus({ fileInfo, settings, orderId, onReset }) {
-  const [stageIndex, setStageIndex] = useState(0)
-  const [progress, setProgress] = useState(0)
+  const [stageIndex, setStageIndex]     = useState(0)
+  const [progress, setProgress]         = useState(0)
+  const [serverOffline, setServerOffline] = useState(false)
+  const [lastChecked, setLastChecked]   = useState(null)
+  const [printStatus, setPrintStatus]   = useState('Waiting')
 
-  // Advance through stages
+  // Poll Google Sheets for real print status
   useEffect(() => {
-    if (stageIndex >= STAGES.length - 1) return
-    const stage = STAGES[stageIndex]
-    const timer = setTimeout(() => setStageIndex((i) => i + 1), stage.duration)
-    return () => clearTimeout(timer)
-  }, [stageIndex])
+    if (!orderId) return
 
-  // Animate progress bar
+    let offlineTimer = null
+    let pollInterval = null
+
+    // Start offline timer — if no status change in 30s, show warning
+    offlineTimer = setTimeout(() => {
+      if (printStatus === 'Waiting') {
+        setServerOffline(true)
+      }
+    }, OFFLINE_TIMEOUT_MS)
+
+    async function checkStatus() {
+      try {
+        const res = await fetch(
+          `${API_URL}?action=getOrderStatus&orderId=${orderId}`
+        )
+        const data = await res.json()
+
+        if (data.success && data.printStatus) {
+          setPrintStatus(data.printStatus)
+          setLastChecked(new Date().toLocaleTimeString())
+          const stage = statusToStage(data.printStatus)
+          setStageIndex(stage)
+
+          // If printing started, agent is online — clear offline warning
+          if (data.printStatus === 'Printing' || data.printStatus === 'Printed') {
+            setServerOffline(false)
+            clearTimeout(offlineTimer)
+          }
+
+          // Stop polling when done
+          if (data.printStatus === 'Printed') {
+            clearInterval(pollInterval)
+          }
+        }
+      } catch {
+        // Network error — don't show offline yet, wait for timeout
+      }
+    }
+
+    checkStatus() // Run immediately
+    pollInterval = setInterval(checkStatus, POLL_INTERVAL_MS)
+
+    return () => {
+      clearInterval(pollInterval)
+      clearTimeout(offlineTimer)
+    }
+  }, [orderId])
+
+  // Animate progress bar based on stage
   useEffect(() => {
     const targetProgress = ((stageIndex + 1) / STAGES.length) * 100
     const step = (targetProgress - progress) / 20
@@ -38,7 +103,6 @@ export default function PrintStatus({ fileInfo, settings, orderId, onReset }) {
   }, [stageIndex])
 
   const isDone = stageIndex === STAGES.length - 1
-  const currentStage = STAGES[stageIndex]
 
   return (
     <motion.section
@@ -68,6 +132,29 @@ export default function PrintStatus({ fileInfo, settings, orderId, onReset }) {
         )}
       </div>
 
+      {/* Server offline warning */}
+      <AnimatePresence>
+        {serverOffline && !isDone && (
+          <motion.div
+            initial={{ opacity: 0, y: -10 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0 }}
+            className="mb-4 p-4 rounded-2xl bg-red-500/10 border border-red-500/30 flex items-start gap-3"
+          >
+            <span className="text-xl">⚠️</span>
+            <div>
+              <p className="text-red-400 font-semibold text-sm">Could not connect to print server</p>
+              <p className="text-gray-500 text-xs mt-1">
+                The print agent appears to be offline. Your order is saved and will print automatically once the server is back online.
+              </p>
+              <p className="text-gray-600 text-xs mt-1">
+                Please inform the shopkeeper — Order ID: <span className="font-mono text-purple-400">{orderId}</span>
+              </p>
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
       {/* Print job card */}
       <div className="glass rounded-2xl p-6 mb-6">
         {/* File info */}
@@ -91,7 +178,11 @@ export default function PrintStatus({ fileInfo, settings, orderId, onReset }) {
           </div>
           <div className="h-2 bg-white/10 rounded-full overflow-hidden">
             <motion.div
-              className="h-full bg-gradient-to-r from-purple-600 to-purple-400 rounded-full"
+              className={`h-full rounded-full bg-gradient-to-r ${
+                serverOffline && !isDone
+                  ? 'from-red-600 to-red-400'
+                  : 'from-purple-600 to-purple-400'
+              }`}
               animate={{ width: `${progress}%` }}
               transition={{ duration: 0.3 }}
             />
@@ -101,7 +192,7 @@ export default function PrintStatus({ fileInfo, settings, orderId, onReset }) {
         {/* Stages */}
         <div className="space-y-3">
           {STAGES.map((stage, i) => {
-            const isActive = i === stageIndex
+            const isActive   = i === stageIndex
             const isComplete = i < stageIndex
             return (
               <motion.div
@@ -114,7 +205,7 @@ export default function PrintStatus({ fileInfo, settings, orderId, onReset }) {
               >
                 <div className={`w-8 h-8 rounded-full flex items-center justify-center text-sm flex-shrink-0 ${
                   isComplete ? 'bg-green-500/20 border border-green-500/30' :
-                  isActive ? 'bg-purple-500/20 border border-purple-500/30' :
+                  isActive   ? 'bg-purple-500/20 border border-purple-500/30' :
                   'bg-white/5 border border-white/10'
                 }`}>
                   {isComplete ? '✓' : stage.icon}
@@ -122,12 +213,12 @@ export default function PrintStatus({ fileInfo, settings, orderId, onReset }) {
                 <div className="flex-1">
                   <p className={`text-sm font-medium ${
                     isComplete ? 'text-green-400' :
-                    isActive ? 'text-white' : 'text-gray-600'
+                    isActive   ? 'text-white' : 'text-gray-600'
                   }`}>
                     {stage.label}
                     {isActive && !isDone && (
                       <span className="ml-2 inline-flex gap-0.5">
-                        {[0,1,2].map(d => (
+                        {[0, 1, 2].map(d => (
                           <motion.span
                             key={d}
                             animate={{ opacity: [0.3, 1, 0.3] }}
@@ -146,6 +237,13 @@ export default function PrintStatus({ fileInfo, settings, orderId, onReset }) {
             )
           })}
         </div>
+
+        {/* Last checked */}
+        {lastChecked && (
+          <p className="text-gray-700 text-xs mt-4 text-right">
+            Last checked: {lastChecked}
+          </p>
+        )}
       </div>
 
       {/* Done state */}

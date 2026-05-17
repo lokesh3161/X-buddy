@@ -1,5 +1,5 @@
 const API_URL =
-  'https://script.google.com/macros/s/AKfycbwPf44zofag9bzab-x9uaHi6Zuw0sfZvC4pZeYOaXmrNTKkcMyLDVXbgZ9NlbIIqlGA/exec'
+  'https://script.google.com/macros/s/AKfycby_n36thdVKW5jET8BPQ4bKoopXOVrYVfvO2RbsycM-Ip2Tym29iEWCkYBL1uYYJBwQ/exec'
 
 const CHUNK_SIZE = 100000 // 100KB per chunk in POST body (no URL encoding issue)
 
