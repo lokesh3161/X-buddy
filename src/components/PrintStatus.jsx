@@ -2,41 +2,37 @@ import { useEffect, useState, useRef } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 
 const API_URL =
-  'https://script.google.com/macros/s/AKfycbyzLXasAyvuEBym97z1hbYzGsLwXAu3t9rCaVGGE_15EdNlaFLfxkr2KwpV5rzGTSSG/exec'
+  'https://script.google.com/macros/s/AKfycbyj8UTgncnMmmz4ERZIN49PiHqPOS2GnBABOKgQ9WEirPh8aHSt0tdCcKkv2nUqeKt9/exec'
 
-// How long to wait before showing "server offline" warning (30 seconds)
 const OFFLINE_TIMEOUT_MS = 30000
-// Poll every 5 seconds
-const POLL_INTERVAL_MS = 5000
+const POLL_INTERVAL_MS   = 5000
 
-// Map print status from Sheets to stage index
+const STAGES = [
+  { id: 'queued',   label: 'Queued',   icon: '📋', desc: 'Your document is in the print queue' },
+  { id: 'sending',  label: 'Sending',  icon: '📡', desc: 'Sending document to printer...'      },
+  { id: 'printing', label: 'Printing', icon: '🖨️', desc: 'Printing your document...'           },
+  { id: 'done',     label: 'Completed',icon: '✅', desc: 'Your document has been printed!'     },
+]
+
 function statusToStage(status) {
   switch (status) {
-    case 'Waiting':   return 0
-    case 'Printing':  return 2
-    case 'Printed':   return 3
-    case 'Failed':    return 3  // show as done so UI doesn't hang
-    default:          return 0
+    case 'Printing': return 2
+    case 'Printed':  return 3
+    case 'Failed':   return 3
+    default:         return 0
   }
 }
 
-const STAGES = [
-  { id: 'queued',    label: 'Queued',    icon: '📋', desc: 'Your document is in the print queue'  },
-  { id: 'sending',  label: 'Sending',   icon: '📡', desc: 'Sending document to printer...'       },
-  { id: 'printing', label: 'Printing',  icon: '🖨️', desc: 'Printing your document...'            },
-  { id: 'done',     label: 'Completed', icon: '✅', desc: 'Your document has been printed!'      },
-]
-
 export default function PrintStatus({ fileInfo, settings, orderId, onReset }) {
-  const [stageIndex, setStageIndex]       = useState(0)
-  const [progress, setProgress]           = useState(0)
+  const [stageIndex,    setStageIndex]    = useState(0)
+  const [progress,      setProgress]      = useState(0)
   const [serverOffline, setServerOffline] = useState(false)
-  const [lastChecked, setLastChecked]     = useState(null)
-  const [printStatus, setPrintStatus]     = useState('Waiting')
-  const [printFailed, setPrintFailed]     = useState(false)
+  const [printFailed,   setPrintFailed]   = useState(false)
+  const [lastChecked,   setLastChecked]   = useState(null)
+
   const pollRef    = useRef(null)
   const offlineRef = useRef(null)
-  const statusRef  = useRef('Waiting') // ref to avoid stale closure
+  const statusRef  = useRef('Waiting')
 
   // Poll Google Sheets for real print status
   useEffect(() => {
@@ -57,30 +53,26 @@ export default function PrintStatus({ fileInfo, settings, orderId, onReset }) {
         if (data.success && data.printStatus) {
           const status = data.printStatus
           statusRef.current = status
-          setPrintStatus(status)
           setLastChecked(new Date().toLocaleTimeString())
           setStageIndex(statusToStage(status))
 
-          // Agent is online — clear offline warning
           if (status !== 'Waiting') {
             setServerOffline(false)
             clearTimeout(offlineRef.current)
           }
 
-          // Handle failed print
           if (status === 'Failed') {
             setPrintFailed(true)
             clearInterval(pollRef.current)
             return
           }
 
-          // Stop polling when done
           if (status === 'Printed') {
             clearInterval(pollRef.current)
           }
         }
       } catch {
-        // Network error — wait for offline timeout
+        // wait for offline timeout
       }
     }
 
@@ -93,15 +85,15 @@ export default function PrintStatus({ fileInfo, settings, orderId, onReset }) {
     }
   }, [orderId])
 
-  // Animate progress bar based on stage
+  // Animate progress bar
   useEffect(() => {
-    const targetProgress = ((stageIndex + 1) / STAGES.length) * 100
-    const step = (targetProgress - progress) / 20
-    let current = progress
+    const target = ((stageIndex + 1) / STAGES.length) * 100
+    const step   = (target - progress) / 20
+    let current  = progress
     const interval = setInterval(() => {
       current += step
-      if (current >= targetProgress) {
-        setProgress(targetProgress)
+      if (current >= target) {
+        setProgress(target)
         clearInterval(interval)
       } else {
         setProgress(current)
@@ -110,7 +102,7 @@ export default function PrintStatus({ fileInfo, settings, orderId, onReset }) {
     return () => clearInterval(interval)
   }, [stageIndex])
 
-  const isDone   = stageIndex === STAGES.length - 1
+  const isDone = stageIndex === STAGES.length - 1
 
   return (
     <motion.section
@@ -118,7 +110,7 @@ export default function PrintStatus({ fileInfo, settings, orderId, onReset }) {
       animate={{ opacity: 1, y: 0 }}
       className="max-w-2xl mx-auto px-4 py-8"
     >
-      {/* Success header */}
+      {/* Header */}
       <div className="text-center mb-8">
         <motion.div
           initial={{ scale: 0 }}
@@ -140,28 +132,7 @@ export default function PrintStatus({ fileInfo, settings, orderId, onReset }) {
         )}
       </div>
 
-      {/* Print failed warning */}
-      <AnimatePresence>
-        {printFailed && (
-          <motion.div
-            initial={{ opacity: 0, y: -10 }}
-            animate={{ opacity: 1, y: 0 }}
-            exit={{ opacity: 0 }}
-            className="mb-4 p-4 rounded-2xl bg-orange-500/10 border border-orange-500/30 flex items-start gap-3"
-          >
-            <span className="text-xl">🖨️</span>
-            <div>
-              <p className="text-orange-400 font-semibold text-sm">Print job failed</p>
-              <p className="text-gray-500 text-xs mt-1">
-                There was an issue with the printer. Please show your Order ID to the shopkeeper.
-              </p>
-              <p className="text-gray-600 text-xs mt-1">
-                Order ID: <span className="font-mono text-purple-400">{orderId}</span>
-              </p>
-            </div>
-          </motion.div>
-        )}
-      </AnimatePresence>}
+      {/* Server offline warning */}
       <AnimatePresence>
         {serverOffline && !isDone && (
           <motion.div
@@ -184,7 +155,30 @@ export default function PrintStatus({ fileInfo, settings, orderId, onReset }) {
         )}
       </AnimatePresence>
 
-      {/* Server offline warning */}
+      {/* Print failed warning */}
+      <AnimatePresence>
+        {printFailed && (
+          <motion.div
+            initial={{ opacity: 0, y: -10 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0 }}
+            className="mb-4 p-4 rounded-2xl bg-orange-500/10 border border-orange-500/30 flex items-start gap-3"
+          >
+            <span className="text-xl">🖨️</span>
+            <div>
+              <p className="text-orange-400 font-semibold text-sm">Print job failed</p>
+              <p className="text-gray-500 text-xs mt-1">
+                There was an issue with the printer. Please show your Order ID to the shopkeeper.
+              </p>
+              <p className="text-gray-600 text-xs mt-1">
+                Order ID: <span className="font-mono text-purple-400">{orderId}</span>
+              </p>
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* Print job card */}
       <div className="glass rounded-2xl p-6 mb-6">
         {/* File info */}
         <div className="flex items-center gap-3 mb-6 pb-4 border-b border-white/10">
@@ -267,11 +261,8 @@ export default function PrintStatus({ fileInfo, settings, orderId, onReset }) {
           })}
         </div>
 
-        {/* Last checked */}
         {lastChecked && (
-          <p className="text-gray-700 text-xs mt-4 text-right">
-            Last checked: {lastChecked}
-          </p>
+          <p className="text-gray-700 text-xs mt-4 text-right">Last checked: {lastChecked}</p>
         )}
       </div>
 

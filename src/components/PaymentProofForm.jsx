@@ -4,7 +4,7 @@ import { fileToBase64 } from '../utils/fileToBase64'
 import { submitOrder } from '../utils/api'
 
 export default function PaymentProofForm({ orderMeta, onSuccess, onClose }) {
-  const [name, setName] = useState('')
+  const [phone, setPhone] = useState('')
   const [transactionId, setTransactionId] = useState('')
   const [screenshot, setScreenshot] = useState(null)   // File object
   const [preview, setPreview] = useState(null)          // Object URL for preview
@@ -30,7 +30,7 @@ export default function PaymentProofForm({ orderMeta, onSuccess, onClose }) {
     setError('')
 
     // Basic validation
-    if (!name.trim()) return setError('Please enter your name.')
+    if (!phone.trim()) return setError('Please enter your phone number.')
     if (!transactionId.trim()) return setError('Please enter the Transaction ID.')
     if (!screenshot) return setError('Please upload your payment screenshot.')
 
@@ -40,7 +40,7 @@ export default function PaymentProofForm({ orderMeta, onSuccess, onClose }) {
 
       setLoadingMsg('Saving order...')
       const result = await submitOrder({
-        name: name.trim(),
+        name: phone.trim(),
         fileName: orderMeta.fileName,
         totalPages: orderMeta.totalPages,
         copies: orderMeta.copies,
@@ -74,12 +74,12 @@ export default function PaymentProofForm({ orderMeta, onSuccess, onClose }) {
       <form onSubmit={handleSubmit} className="space-y-3">
         {/* Name */}
         <div>
-          <label className="text-gray-400 text-xs mb-1 block">Your Name</label>
+          <label className="text-gray-400 text-xs mb-1 block">Phone Number</label>
           <input
-            type="text"
-            value={name}
-            onChange={(e) => setName(e.target.value)}
-            placeholder="Enter your name"
+            type="tel"
+            value={phone}
+            onChange={(e) => setPhone(e.target.value)}
+            placeholder="Enter your phone number"
             className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-2.5 text-white text-sm placeholder-gray-600 focus:outline-none focus:border-purple-500 transition-colors"
           />
         </div>

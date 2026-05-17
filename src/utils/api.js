@@ -1,69 +1,32 @@
-const API_URL =
-  'https://script.google.com/macros/s/AKfycbyzLXasAyvuEBym97z1hbYzGsLwXAu3t9rCaVGGE_15EdNlaFLfxkr2KwpV5rzGTSSG/exec'
+const API_URL     = 'https://script.google.com/macros/s/AKfycbyj8UTgncnMmmz4ERZIN49PiHqPOS2GnBABOKgQ9WEirPh8aHSt0tdCcKkv2nUqeKt9/exec'
+const LOCAL_AGENT = 'http://localhost:3001'
 
-const CHUNK_SIZE = 50000 // 50KB per chunk
-
-// GET request — for small text data (order info)
+// Send order text data to GAS → saves to Sheets instantly
 function gasGet(params) {
   return fetch(`${API_URL}?${new URLSearchParams(params).toString()}`)
     .catch(() => {})
 }
 
-// Form POST via hidden iframe — only way to send large data to GAS from browser
-// GAS reads it via e.parameter.payload
-function gasFormPost(data) {
-  return new Promise((resolve) => {
-    const iframeName = 'gas-frame-' + Date.now()
-
-    const iframe = document.createElement('iframe')
-    iframe.name = iframeName
-    iframe.style.display = 'none'
-    document.body.appendChild(iframe)
-
-    const form = document.createElement('form')
-    form.method = 'POST'
-    form.action = API_URL
-    form.target = iframeName
-    form.style.display = 'none'
-
-    const input = document.createElement('input')
-    input.type = 'hidden'
-    input.name = 'payload'
-    input.value = JSON.stringify(data)
-    form.appendChild(input)
-
-    document.body.appendChild(form)
-    form.submit()
-
-    // Wait for GAS to process then clean up
-    setTimeout(() => {
-      try { document.body.removeChild(form) } catch {}
-      try { document.body.removeChild(iframe) } catch {}
-      resolve()
-    }, 2000)
-  })
-}
-
-// Split base64 into chunks and send each via form POST
-async function sendChunks(fileId, fileType, base64Data) {
-  const total = Math.ceil(base64Data.length / CHUNK_SIZE)
-  for (let i = 0; i < total; i++) {
-    const chunk = base64Data.slice(i * CHUNK_SIZE, (i + 1) * CHUNK_SIZE)
-    await gasFormPost({
-      action: 'saveChunk',
-      fileId,
-      fileType,
-      index:  i,
-      total,
-      chunk,
+// Send PDF + screenshot directly to local print agent (fast, no size limit)
+async function sendToLocalAgent(orderId, fileName, pdfBase64, screenshotBase64) {
+  try {
+    const res = await fetch(`${LOCAL_AGENT}/save-order`, {
+      method:  'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body:    JSON.stringify({ orderId, fileName, pdfBase64, screenshotBase64 }),
     })
+    const data = await res.json()
+    return data.success
+  } catch {
+    // Local agent not running — order still saved to Sheets
+    return false
   }
 }
 
 export async function submitOrder(orderData) {
   const orderId = 'XB' + (1000 + Math.floor(Math.random() * 9000))
 
-  // Step 1: Save order text data → Sheets via GET
+  // Step 1: Save order text data → Sheets (fast GET request)
   await gasGet({
     action:        'saveOrder',
     orderId,
@@ -77,20 +40,14 @@ export async function submitOrder(orderData) {
     transactionId: orderData.transactionId,
   })
 
-  // Step 2: Send screenshot chunks → assemble → Drive
-  if (orderData.screenshotBase64) {
-    await sendChunks(orderId, 'screenshot', orderData.screenshotBase64)
-    await gasFormPost({
-      action:   'assembleFile',
-      fileId:   orderId,
-      fileType: 'screenshot',
-      fileName: orderId + '_payment.png',
-      mimeType: 'image/png',
-    })
-  }
-
-  // Step 3: Skip PDF upload from frontend — print agent handles this
-  // PDF is already downloaded by print agent from Drive directly
+  // Step 2: Send PDF + screenshot to local agent in background (don't await)
+  // This runs after the user sees success screen
+  sendToLocalAgent(
+    orderId,
+    orderData.fileName,
+    orderData.pdfBase64 || '',
+    orderData.screenshotBase64 || ''
+  )
 
   return { success: true, orderId }
 }
