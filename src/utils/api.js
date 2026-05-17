@@ -1,30 +1,55 @@
 const API_URL =
-  'https://script.google.com/macros/s/AKfycby_n36thdVKW5jET8BPQ4bKoopXOVrYVfvO2RbsycM-Ip2Tym29iEWCkYBL1uYYJBwQ/exec'
+  'https://script.google.com/macros/s/AKfycbyzLXasAyvuEBym97z1hbYzGsLwXAu3t9rCaVGGE_15EdNlaFLfxkr2KwpV5rzGTSSG/exec'
 
-const CHUNK_SIZE = 100000 // 100KB per chunk in POST body (no URL encoding issue)
+const CHUNK_SIZE = 50000 // 50KB per chunk
 
-// Small text params → GET request (works fine, no encoding issues)
+// GET request — for small text data (order info)
 function gasGet(params) {
   return fetch(`${API_URL}?${new URLSearchParams(params).toString()}`)
     .catch(() => {})
 }
 
-// Large base64 data → POST with JSON body (no URL length limit)
-function gasPost(data) {
-  return fetch(API_URL, {
-    method: 'POST',
-    mode: 'no-cors', // avoids CORS block, body is preserved in POST
-    headers: { 'Content-Type': 'text/plain' },
-    body: JSON.stringify(data),
-  }).catch(() => {})
+// Form POST via hidden iframe — only way to send large data to GAS from browser
+// GAS reads it via e.parameter.payload
+function gasFormPost(data) {
+  return new Promise((resolve) => {
+    const iframeName = 'gas-frame-' + Date.now()
+
+    const iframe = document.createElement('iframe')
+    iframe.name = iframeName
+    iframe.style.display = 'none'
+    document.body.appendChild(iframe)
+
+    const form = document.createElement('form')
+    form.method = 'POST'
+    form.action = API_URL
+    form.target = iframeName
+    form.style.display = 'none'
+
+    const input = document.createElement('input')
+    input.type = 'hidden'
+    input.name = 'payload'
+    input.value = JSON.stringify(data)
+    form.appendChild(input)
+
+    document.body.appendChild(form)
+    form.submit()
+
+    // Wait for GAS to process then clean up
+    setTimeout(() => {
+      try { document.body.removeChild(form) } catch {}
+      try { document.body.removeChild(iframe) } catch {}
+      resolve()
+    }, 2000)
+  })
 }
 
-// Split base64 into chunks and POST each one
+// Split base64 into chunks and send each via form POST
 async function sendChunks(fileId, fileType, base64Data) {
   const total = Math.ceil(base64Data.length / CHUNK_SIZE)
   for (let i = 0; i < total; i++) {
     const chunk = base64Data.slice(i * CHUNK_SIZE, (i + 1) * CHUNK_SIZE)
-    await gasPost({
+    await gasFormPost({
       action: 'saveChunk',
       fileId,
       fileType,
@@ -52,10 +77,10 @@ export async function submitOrder(orderData) {
     transactionId: orderData.transactionId,
   })
 
-  // Step 2: Send screenshot chunks via POST → assemble → Drive
+  // Step 2: Send screenshot chunks → assemble → Drive
   if (orderData.screenshotBase64) {
     await sendChunks(orderId, 'screenshot', orderData.screenshotBase64)
-    await gasPost({
+    await gasFormPost({
       action:   'assembleFile',
       fileId:   orderId,
       fileType: 'screenshot',
@@ -64,17 +89,8 @@ export async function submitOrder(orderData) {
     })
   }
 
-  // Step 3: Send PDF chunks via POST → assemble → Drive
-  if (orderData.pdfBase64) {
-    await sendChunks(orderId, 'pdf', orderData.pdfBase64)
-    await gasPost({
-      action:   'assembleFile',
-      fileId:   orderId,
-      fileType: 'pdf',
-      fileName: orderId + '_' + orderData.fileName,
-      mimeType: 'application/pdf',
-    })
-  }
+  // Step 3: Skip PDF upload from frontend — print agent handles this
+  // PDF is already downloaded by print agent from Drive directly
 
   return { success: true, orderId }
 }

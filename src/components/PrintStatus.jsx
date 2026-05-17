@@ -1,8 +1,8 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useState, useRef } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 
 const API_URL =
-  'https://script.google.com/macros/s/AKfycby_n36thdVKW5jET8BPQ4bKoopXOVrYVfvO2RbsycM-Ip2Tym29iEWCkYBL1uYYJBwQ/exec'
+  'https://script.google.com/macros/s/AKfycbyzLXasAyvuEBym97z1hbYzGsLwXAu3t9rCaVGGE_15EdNlaFLfxkr2KwpV5rzGTSSG/exec'
 
 // How long to wait before showing "server offline" warning (30 seconds)
 const OFFLINE_TIMEOUT_MS = 30000
@@ -15,6 +15,7 @@ function statusToStage(status) {
     case 'Waiting':   return 0
     case 'Printing':  return 2
     case 'Printed':   return 3
+    case 'Failed':    return 3  // show as done so UI doesn't hang
     default:          return 0
   }
 }
@@ -27,61 +28,68 @@ const STAGES = [
 ]
 
 export default function PrintStatus({ fileInfo, settings, orderId, onReset }) {
-  const [stageIndex, setStageIndex]     = useState(0)
-  const [progress, setProgress]         = useState(0)
+  const [stageIndex, setStageIndex]       = useState(0)
+  const [progress, setProgress]           = useState(0)
   const [serverOffline, setServerOffline] = useState(false)
-  const [lastChecked, setLastChecked]   = useState(null)
-  const [printStatus, setPrintStatus]   = useState('Waiting')
+  const [lastChecked, setLastChecked]     = useState(null)
+  const [printStatus, setPrintStatus]     = useState('Waiting')
+  const [printFailed, setPrintFailed]     = useState(false)
+  const pollRef    = useRef(null)
+  const offlineRef = useRef(null)
+  const statusRef  = useRef('Waiting') // ref to avoid stale closure
 
   // Poll Google Sheets for real print status
   useEffect(() => {
     if (!orderId) return
 
-    let offlineTimer = null
-    let pollInterval = null
-
-    // Start offline timer — if no status change in 30s, show warning
-    offlineTimer = setTimeout(() => {
-      if (printStatus === 'Waiting') {
+    // Show offline warning after 30s if still Waiting
+    offlineRef.current = setTimeout(() => {
+      if (statusRef.current === 'Waiting') {
         setServerOffline(true)
       }
     }, OFFLINE_TIMEOUT_MS)
 
     async function checkStatus() {
       try {
-        const res = await fetch(
-          `${API_URL}?action=getOrderStatus&orderId=${orderId}`
-        )
+        const res  = await fetch(`${API_URL}?action=getOrderStatus&orderId=${orderId}`)
         const data = await res.json()
 
         if (data.success && data.printStatus) {
-          setPrintStatus(data.printStatus)
+          const status = data.printStatus
+          statusRef.current = status
+          setPrintStatus(status)
           setLastChecked(new Date().toLocaleTimeString())
-          const stage = statusToStage(data.printStatus)
-          setStageIndex(stage)
+          setStageIndex(statusToStage(status))
 
-          // If printing started, agent is online — clear offline warning
-          if (data.printStatus === 'Printing' || data.printStatus === 'Printed') {
+          // Agent is online — clear offline warning
+          if (status !== 'Waiting') {
             setServerOffline(false)
-            clearTimeout(offlineTimer)
+            clearTimeout(offlineRef.current)
+          }
+
+          // Handle failed print
+          if (status === 'Failed') {
+            setPrintFailed(true)
+            clearInterval(pollRef.current)
+            return
           }
 
           // Stop polling when done
-          if (data.printStatus === 'Printed') {
-            clearInterval(pollInterval)
+          if (status === 'Printed') {
+            clearInterval(pollRef.current)
           }
         }
       } catch {
-        // Network error — don't show offline yet, wait for timeout
+        // Network error — wait for offline timeout
       }
     }
 
-    checkStatus() // Run immediately
-    pollInterval = setInterval(checkStatus, POLL_INTERVAL_MS)
+    checkStatus()
+    pollRef.current = setInterval(checkStatus, POLL_INTERVAL_MS)
 
     return () => {
-      clearInterval(pollInterval)
-      clearTimeout(offlineTimer)
+      clearInterval(pollRef.current)
+      clearTimeout(offlineRef.current)
     }
   }, [orderId])
 
@@ -102,7 +110,7 @@ export default function PrintStatus({ fileInfo, settings, orderId, onReset }) {
     return () => clearInterval(interval)
   }, [stageIndex])
 
-  const isDone = stageIndex === STAGES.length - 1
+  const isDone   = stageIndex === STAGES.length - 1
 
   return (
     <motion.section
@@ -132,7 +140,28 @@ export default function PrintStatus({ fileInfo, settings, orderId, onReset }) {
         )}
       </div>
 
-      {/* Server offline warning */}
+      {/* Print failed warning */}
+      <AnimatePresence>
+        {printFailed && (
+          <motion.div
+            initial={{ opacity: 0, y: -10 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0 }}
+            className="mb-4 p-4 rounded-2xl bg-orange-500/10 border border-orange-500/30 flex items-start gap-3"
+          >
+            <span className="text-xl">🖨️</span>
+            <div>
+              <p className="text-orange-400 font-semibold text-sm">Print job failed</p>
+              <p className="text-gray-500 text-xs mt-1">
+                There was an issue with the printer. Please show your Order ID to the shopkeeper.
+              </p>
+              <p className="text-gray-600 text-xs mt-1">
+                Order ID: <span className="font-mono text-purple-400">{orderId}</span>
+              </p>
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>}
       <AnimatePresence>
         {serverOffline && !isDone && (
           <motion.div
@@ -155,7 +184,7 @@ export default function PrintStatus({ fileInfo, settings, orderId, onReset }) {
         )}
       </AnimatePresence>
 
-      {/* Print job card */}
+      {/* Server offline warning */}
       <div className="glass rounded-2xl p-6 mb-6">
         {/* File info */}
         <div className="flex items-center gap-3 mb-6 pb-4 border-b border-white/10">
