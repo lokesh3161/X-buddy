@@ -7,7 +7,6 @@ import PriceCard from './components/PriceCard'
 import PaymentModal from './components/PaymentModal'
 import PrintStatus from './components/PrintStatus'
 import { calcTotal } from './utils/pricing'
-import { fileToBase64 } from './utils/fileToBase64'
 
 const STEP = { HERO: 'hero', UPLOAD: 'upload', SETTINGS: 'settings', PRINTING: 'printing' }
 const DEFAULT_SETTINGS = { colorMode: 'bw', sideMode: 'single', copies: 1 }
@@ -15,7 +14,6 @@ const DEFAULT_SETTINGS = { colorMode: 'bw', sideMode: 'single', copies: 1 }
 export default function App() {
   const [step, setStep] = useState(STEP.HERO)
   const [fileInfo, setFileInfo] = useState(null)
-  const [pdfBase64, setPdfBase64] = useState(null)
   const [settings, setSettings] = useState(DEFAULT_SETTINGS)
   const [showPayment, setShowPayment] = useState(false)
   const [orderId, setOrderId] = useState(null)
@@ -39,16 +37,13 @@ export default function App() {
         printType: settings.colorMode === 'color' ? 'Color' : 'B&W',
         printSide: settings.sideMode === 'double' ? 'Double' : 'Single',
         amount: total,
-        pdfBase64,  // include PDF base64
+        pdfFile: fileInfo.file,  // pass raw file — converted fresh at submit time
       }
     : null
 
   async function handleFileReady(info) {
     setFileInfo(info)
     setStep(STEP.SETTINGS)
-    // Convert PDF to base64 in background while user selects settings
-    const base64 = await fileToBase64(info.file)
-    setPdfBase64(base64)
     setTimeout(() => settingsRef.current?.scrollIntoView({ behavior: 'smooth' }), 100)
   }
 
@@ -63,7 +58,6 @@ export default function App() {
   function handleReset() {
     setStep(STEP.HERO)
     setFileInfo(null)
-    setPdfBase64(null)
     setSettings(DEFAULT_SETTINGS)
     setShowPayment(false)
     setOrderId(null)

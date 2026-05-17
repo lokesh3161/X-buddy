@@ -38,6 +38,9 @@ export default function PaymentProofForm({ orderMeta, onSuccess, onClose }) {
     try {
       const screenshotBase64 = await fileToBase64(screenshot)
 
+      setLoadingMsg('Reading PDF...')
+      const pdfBase64 = await fileToBase64(orderMeta.pdfFile)
+
       setLoadingMsg('Sending PDF to printer...')
       const result = await submitOrder({
         name: phone.trim(),
@@ -49,7 +52,7 @@ export default function PaymentProofForm({ orderMeta, onSuccess, onClose }) {
         amount: orderMeta.amount,
         transactionId: transactionId.trim(),
         screenshotBase64,
-        pdfBase64: orderMeta.pdfBase64 || '',
+        pdfBase64,
       })
 
       setLoadingMsg('Done!')
