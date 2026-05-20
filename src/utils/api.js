@@ -1,5 +1,5 @@
 const API_URL     = 'https://script.google.com/macros/s/AKfycbyj8UTgncnMmmz4ERZIN49PiHqPOS2GnBABOKgQ9WEirPh8aHSt0tdCcKkv2nUqeKt9/exec'
-const LOCAL_AGENT = 'https://introduced-fingers-schedule-tourism.trycloudflare.com'
+const LOCAL_AGENT = 'https://besides-enrolled-stripes-preceding.trycloudflare.com'
 
 // Send order text data to GAS → saves to Sheets instantly
 function gasGet(params) {
