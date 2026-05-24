@@ -20,6 +20,19 @@ async function sendToLocalAgent(orderId, fileName, pdfBase64, screenshotBase64) 
   }
 }
 
+export async function boothLogin(pin) {
+  try {
+    const res = await fetch('http://localhost:3001/booth-login', {
+      method:  'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body:    JSON.stringify({ pin }),
+    })
+    return await res.json()
+  } catch {
+    return { success: false, error: 'Could not connect to print agent.' }
+  }
+}
+
 export async function validateAndRelease(orderId) {
   try {
     const res = await fetch('http://localhost:3001/release-print', {

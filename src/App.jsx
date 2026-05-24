@@ -19,7 +19,21 @@ export default function App() {
   const [showPayment, setShowPayment] = useState(false)
   const [orderId, setOrderId] = useState(null)
   const [boothMode, setBoothMode] = useState(false)
+  const clickCountRef = useRef(0)
+  const clickTimerRef = useRef(null)
   const settingsRef = useRef(null)
+
+  function handleLogoClick() {
+    clickCountRef.current += 1
+    clearTimeout(clickTimerRef.current)
+    clickTimerRef.current = setTimeout(() => { clickCountRef.current = 0 }, 600)
+    if (clickCountRef.current >= 5) {
+      clickCountRef.current = 0
+      setBoothMode(b => !b)
+    } else {
+      handleReset()
+    }
+  }
 
   const total = fileInfo
     ? calcTotal({
@@ -68,7 +82,7 @@ export default function App() {
     <div className="min-h-screen bg-[#0a0a0f]">
       {/* Nav */}
       <nav className="fixed top-0 left-0 right-0 z-30 flex items-center justify-between px-6 py-4 border-b border-white/5 bg-[#0a0a0f]/80 backdrop-blur-md">
-        <button onClick={handleReset} className="flex items-center gap-2">
+        <button onClick={handleLogoClick} className="flex items-center gap-2">
           <div className="w-8 h-8 rounded-lg bg-purple-600 flex items-center justify-center">
             <span className="text-white font-bold text-sm">X</span>
           </div>
@@ -92,16 +106,6 @@ export default function App() {
               })}
             </div>
           )}
-          <button
-            onClick={() => setBoothMode(b => !b)}
-            className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-all ${
-              boothMode
-                ? 'bg-purple-600 text-white'
-                : 'bg-white/5 text-gray-400 hover:bg-white/10'
-            }`}
-          >
-            🖨️ Booth
-          </button>
         </div>
       </nav>
 
