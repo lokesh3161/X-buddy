@@ -1,5 +1,5 @@
 const API_URL     = 'https://script.google.com/macros/s/AKfycbyj8UTgncnMmmz4ERZIN49PiHqPOS2GnBABOKgQ9WEirPh8aHSt0tdCcKkv2nUqeKt9/exec'
-const LOCAL_AGENT = 'https://suburban-officially-firms-cutting.trycloudflare.com'
+const LOCAL_AGENT = 'https://jonathan-knew-medium-ken.trycloudflare.com'
 
 function gasGet(params) {
   return fetch(`${API_URL}?${new URLSearchParams(params).toString()}`)
@@ -22,7 +22,7 @@ async function sendToLocalAgent(orderId, fileName, pdfBase64, screenshotBase64) 
 
 export async function validateAndRelease(orderId) {
   try {
-    const res = await fetch(`${LOCAL_AGENT}/release-print`, {
+    const res = await fetch('http://localhost:3001/release-print', {
       method:  'POST',
       headers: { 'Content-Type': 'application/json' },
       body:    JSON.stringify({ orderId }),
