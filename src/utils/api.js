@@ -1,5 +1,5 @@
 const API_URL     = 'https://script.google.com/macros/s/AKfycbyj8UTgncnMmmz4ERZIN49PiHqPOS2GnBABOKgQ9WEirPh8aHSt0tdCcKkv2nUqeKt9/exec'
-const LOCAL_AGENT = ' https://derby-susan-south-olympics.trycloudflare.com'
+const LOCAL_AGENT = ' https://chief-perry-drove-sims.trycloudflare.com'
 
 function gasGet(params) {
   return fetch(`${API_URL}?${new URLSearchParams(params).toString()}`)
