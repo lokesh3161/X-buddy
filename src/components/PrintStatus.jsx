@@ -8,10 +8,10 @@ const OFFLINE_TIMEOUT_MS = 30000
 const POLL_INTERVAL_MS   = 5000
 
 const STAGES = [
-  { id: 'queued',   label: 'Queued',   icon: '📋', desc: 'Your document is in the print queue' },
-  { id: 'sending',  label: 'Sending',  icon: '📡', desc: 'Sending document to printer...'      },
-  { id: 'printing', label: 'Printing', icon: '🖨️', desc: 'Printing your document...'           },
-  { id: 'done',     label: 'Completed',icon: '✅', desc: 'Your document has been printed!'     },
+  { id: 'paid',     label: 'Payment Confirmed', icon: '✅', desc: 'Your payment has been verified'           },
+  { id: 'queued',   label: 'Order Queued',       icon: '📋', desc: 'Your document is saved and ready'        },
+  { id: 'printing', label: 'Printing',           icon: '🖨️', desc: 'Printing your document...'              },
+  { id: 'done',     label: 'Completed',          icon: '🎉', desc: 'Collect your document from the printer!' },
 ]
 
 function statusToStage(status) {
@@ -19,7 +19,7 @@ function statusToStage(status) {
     case 'Printing': return 2
     case 'Printed':  return 3
     case 'Failed':   return 3
-    default:         return 0
+    default:         return 1
   }
 }
 
@@ -122,8 +122,8 @@ export default function PrintStatus({ fileInfo, settings, orderId, onReset }) {
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
           </svg>
         </motion.div>
-        <h2 className="text-2xl font-bold text-white">Payment Successful!</h2>
-        <p className="text-gray-500 text-sm mt-1">Your print job has been submitted</p>
+        <h2 className="text-2xl font-bold text-white">Order Confirmed!</h2>
+        <p className="text-gray-500 text-sm mt-1">Go to the printer booth to release your print</p>
         {orderId && (
           <div className="inline-flex items-center gap-2 mt-3 px-4 py-1.5 rounded-full bg-purple-500/10 border border-purple-500/20">
             <span className="text-gray-500 text-xs">Order ID:</span>
@@ -131,6 +131,29 @@ export default function PrintStatus({ fileInfo, settings, orderId, onReset }) {
           </div>
         )}
       </div>
+
+      {/* Go to booth instruction */}
+      <AnimatePresence>
+        {stageIndex < 2 && (
+          <motion.div
+            initial={{ opacity: 0, y: -10 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0 }}
+            className="mb-4 p-4 rounded-2xl bg-purple-500/10 border border-purple-500/30 flex items-start gap-3"
+          >
+            <span className="text-xl">🏪</span>
+            <div>
+              <p className="text-purple-300 font-semibold text-sm">Go to the Printer Booth</p>
+              <p className="text-gray-400 text-xs mt-1">
+                Show your Order ID at the booth. The shopkeeper will enter it to release your print.
+              </p>
+              <p className="text-gray-500 text-xs mt-1">
+                Order ID: <span className="font-mono text-purple-400 font-bold">{orderId}</span>
+              </p>
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
 
       {/* Server offline warning */}
       <AnimatePresence>

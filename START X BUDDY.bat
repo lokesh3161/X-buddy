@@ -3,9 +3,9 @@ title X Buddy — Master Startup
 color 0D
 set NODE=C:\Program Files\nodejs\node.exe
 set NPM=C:\Program Files\nodejs\npm.cmd
-set AGENT_DIR=C:\Users\Lokesh Thanala\Desktop\xbuddy-print-agent
-set WEB_DIR=C:\Users\Lokesh Thanala\Desktop\xerox buddy
-set API_FILE=C:\Users\Lokesh Thanala\Desktop\xerox buddy\src\utils\api.js
+set AGENT_DIR=C:\Users\Lokesh Thanala\OneDrive\Desktop\xbuddy-print-agent
+set WEB_DIR=C:\Users\Lokesh Thanala\OneDrive\Desktop\xerox buddy
+set API_FILE=C:\Users\Lokesh Thanala\OneDrive\Desktop\xerox buddy\src\utils\api.js
 set CLOUDFLARED=%AGENT_DIR%\cloudflared.exe
 set TUNNEL_LOG=%TEMP%\xbuddy_tunnel.log
 
@@ -18,7 +18,7 @@ echo.
 echo [1/5] Starting Cloudflare Tunnel...
 if exist "%TUNNEL_LOG%" del "%TUNNEL_LOG%"
 
-powershell -Command "Start-Process -FilePath '%CLOUDFLARED%' -ArgumentList 'tunnel --url http://localhost:3001' -RedirectStandardOutput '%TUNNEL_LOG%' -RedirectStandardError '%TEMP%\xbuddy_tunnel_err.log' -WindowStyle Minimized"
+start "" /min "%AGENT_DIR%\cloudflared.exe" tunnel --url http://localhost:3001 > "%TUNNEL_LOG%" 2>"%TEMP%\xbuddy_tunnel_err.log"
 
 echo      Waiting for tunnel URL (up to 30 seconds)...
 set TUNNEL_URL=
@@ -61,7 +61,7 @@ echo.
 
 :: ── STEP 4: Start Print Agent ────────────────────────────────────────────
 echo [4/5] Starting Print Agent...
-start "X Buddy Print Agent" cmd /k "set PATH=C:\Program Files\nodejs;%PATH% && cd /d "%AGENT_DIR%" && "%NODE%" index.js"
+start "X Buddy Print Agent" cmd /k "set PATH=C:\Program Files\nodejs;%PATH% && cd /d "%AGENT_DIR%" && node index.js"
 timeout /t 3 /nobreak >nul
 echo      Print Agent started!
 echo.
