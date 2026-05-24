@@ -1,8 +1,7 @@
-import { useState, useEffect, useRef, useCallback } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 
 const SESSION_KEY   = 'xbuddy_booth_auth'
-const INACTIVITY_MS = 5 * 60 * 1000
 const AGENT_URL     = 'http://localhost:3001'
 
 function isAuthed() { return sessionStorage.getItem(SESSION_KEY) === 'true' }
@@ -131,7 +130,6 @@ function ReleasePrint({ onLock }) {
   const [lastPrint, setLastPrint] = useState(null)
   const [time,     setTime]     = useState(new Date())
   const inputRef  = useRef()
-  const timerRef  = useRef()
 
   // Clock
   useEffect(() => {
@@ -141,26 +139,6 @@ function ReleasePrint({ onLock }) {
 
   // Auto-focus input
   useEffect(() => { inputRef.current?.focus() }, [])
-
-  // Inactivity auto-lock
-  const resetTimer = useCallback(() => {
-    clearTimeout(timerRef.current)
-    timerRef.current = setTimeout(() => {
-      sessionStorage.removeItem(SESSION_KEY)
-      onLock()
-    }, INACTIVITY_MS)
-  }, [onLock])
-
-  useEffect(() => {
-    resetTimer()
-    window.addEventListener('mousemove', resetTimer)
-    window.addEventListener('keydown',   resetTimer)
-    return () => {
-      clearTimeout(timerRef.current)
-      window.removeEventListener('mousemove', resetTimer)
-      window.removeEventListener('keydown',   resetTimer)
-    }
-  }, [resetTimer])
 
   async function handleRelease(e) {
     e.preventDefault()
@@ -310,7 +288,7 @@ function ReleasePrint({ onLock }) {
 
       {/* Footer */}
       <div className="text-center py-4 border-t border-white/5">
-        <p className="text-gray-700 text-xs">Auto-locks after 5 min of inactivity · X Buddy Booth Terminal</p>
+        <p className="text-gray-700 text-xs">X Buddy Booth Terminal</p>
       </div>
     </div>
   )
