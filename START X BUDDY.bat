@@ -71,6 +71,7 @@ echo [5/5] Starting Website...
 start "X Buddy Website" cmd /k "set PATH=C:\Program Files\nodejs;%PATH% && cd /d "%WEB_DIR%" && "%NPM%" run dev"
 timeout /t 6 /nobreak >nul
 start "" "http://localhost:5173"
+start "" "http://localhost:5173/booth.html"
 echo      Website started!
 echo.
 
@@ -78,6 +79,7 @@ echo  ==========================================
 echo  Everything is running!
 echo.
 echo  Website:    http://localhost:5173
+echo  Booth:      http://localhost:5173/booth.html
 echo  Tunnel URL: %TUNNEL_URL%
 echo  ==========================================
 echo.

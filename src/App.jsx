@@ -6,7 +6,6 @@ import PrintSettings from './components/PrintSettings'
 import PriceCard from './components/PriceCard'
 import PaymentModal from './components/PaymentModal'
 import PrintStatus from './components/PrintStatus'
-import ReleasePrint from './components/ReleasePrint'
 import { calcTotal } from './utils/pricing'
 
 const STEP = { HERO: 'hero', UPLOAD: 'upload', SETTINGS: 'settings', PRINTING: 'printing' }
@@ -18,22 +17,7 @@ export default function App() {
   const [settings, setSettings] = useState(DEFAULT_SETTINGS)
   const [showPayment, setShowPayment] = useState(false)
   const [orderId, setOrderId] = useState(null)
-  const [boothMode, setBoothMode] = useState(false)
-  const clickCountRef = useRef(0)
-  const clickTimerRef = useRef(null)
   const settingsRef = useRef(null)
-
-  function handleLogoClick() {
-    clickCountRef.current += 1
-    clearTimeout(clickTimerRef.current)
-    clickTimerRef.current = setTimeout(() => { clickCountRef.current = 0 }, 600)
-    if (clickCountRef.current >= 5) {
-      clickCountRef.current = 0
-      setBoothMode(b => !b)
-    } else {
-      handleReset()
-    }
-  }
 
   const total = fileInfo
     ? calcTotal({
@@ -82,77 +66,71 @@ export default function App() {
     <div className="min-h-screen bg-[#0a0a0f]">
       {/* Nav */}
       <nav className="fixed top-0 left-0 right-0 z-30 flex items-center justify-between px-6 py-4 border-b border-white/5 bg-[#0a0a0f]/80 backdrop-blur-md">
-        <button onClick={handleLogoClick} className="flex items-center gap-2">
+        <button onClick={handleReset} className="flex items-center gap-2">
           <div className="w-8 h-8 rounded-lg bg-purple-600 flex items-center justify-center">
             <span className="text-white font-bold text-sm">X</span>
           </div>
           <span className="text-white font-bold text-lg">X Buddy</span>
         </button>
-        <div className="flex items-center gap-3">
-          {step !== STEP.HERO && !boothMode && (
-            <div className="flex items-center gap-2 text-xs text-gray-500">
-              {['Upload', 'Settings', 'Pay & Print'].map((label, i) => {
-                const stepKeys = [STEP.UPLOAD, STEP.SETTINGS, STEP.PRINTING]
-                const isPast = step === STEP.PRINTING && i < 2
-                const isActive = step === stepKeys[i]
-                return (
-                  <div key={label} className="flex items-center gap-2">
-                    <span className={`${isPast ? 'text-green-400' : isActive ? 'text-purple-400' : 'text-gray-600'} font-medium`}>
-                      {isPast ? '✓' : `${i + 1}.`} {label}
-                    </span>
-                    {i < 2 && <span className="text-gray-700">›</span>}
-                  </div>
-                )
-              })}
-            </div>
-          )}
-        </div>
+        {step !== STEP.HERO && (
+          <div className="flex items-center gap-2 text-xs text-gray-500">
+            {['Upload', 'Settings', 'Pay & Print'].map((label, i) => {
+              const stepKeys = [STEP.UPLOAD, STEP.SETTINGS, STEP.PRINTING]
+              const isPast   = step === STEP.PRINTING && i < 2
+              const isActive = step === stepKeys[i]
+              return (
+                <div key={label} className="flex items-center gap-2">
+                  <span className={`${isPast ? 'text-green-400' : isActive ? 'text-purple-400' : 'text-gray-600'} font-medium`}>
+                    {isPast ? '✓' : `${i + 1}.`} {label}
+                  </span>
+                  {i < 2 && <span className="text-gray-700">›</span>}
+                </div>
+              )
+            })}
+          </div>
+        )}
       </nav>
 
       {/* Main content */}
       <main className="pt-16">
-        {boothMode ? (
-          <ReleasePrint />
-        ) : (
-          <AnimatePresence mode="wait">
-            {step === STEP.HERO && (
-              <motion.div key="hero" exit={{ opacity: 0, y: -20 }} transition={{ duration: 0.3 }}>
-                <Hero onGetStarted={() => setStep(STEP.UPLOAD)} />
-              </motion.div>
-            )}
+        <AnimatePresence mode="wait">
+          {step === STEP.HERO && (
+            <motion.div key="hero" exit={{ opacity: 0, y: -20 }} transition={{ duration: 0.3 }}>
+              <Hero onGetStarted={() => setStep(STEP.UPLOAD)} />
+            </motion.div>
+          )}
 
-            {(step === STEP.UPLOAD || step === STEP.SETTINGS) && (
-              <motion.div key="main" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}>
-                <UploadSection onFileReady={handleFileReady} />
-                <AnimatePresence>
-                  {fileInfo && step === STEP.SETTINGS && (
-                    <motion.div
-                      ref={settingsRef}
-                      key="settings"
-                      initial={{ opacity: 0, y: 30 }}
-                      animate={{ opacity: 1, y: 0 }}
-                      exit={{ opacity: 0 }}
-                    >
-                      <PrintSettings fileInfo={fileInfo} settings={settings} onChange={setSettings} />
-                      <PriceCard fileInfo={fileInfo} settings={settings} onPayAndPrint={() => setShowPayment(true)} />
-                    </motion.div>
-                  )}
-                </AnimatePresence>
-              </motion.div>
-            )}
+          {(step === STEP.UPLOAD || step === STEP.SETTINGS) && (
+            <motion.div key="main" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}>
+              <UploadSection onFileReady={handleFileReady} />
+              <AnimatePresence>
+                {fileInfo && step === STEP.SETTINGS && (
+                  <motion.div
+                    ref={settingsRef}
+                    key="settings"
+                    initial={{ opacity: 0, y: 30 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    exit={{ opacity: 0 }}
+                  >
+                    <PrintSettings fileInfo={fileInfo} settings={settings} onChange={setSettings} />
+                    <PriceCard fileInfo={fileInfo} settings={settings} onPayAndPrint={() => setShowPayment(true)} />
+                  </motion.div>
+                )}
+              </AnimatePresence>
+            </motion.div>
+          )}
 
-            {step === STEP.PRINTING && (
-              <motion.div key="printing" initial={{ opacity: 0 }} animate={{ opacity: 1 }}>
-                <PrintStatus
-                  fileInfo={fileInfo}
-                  settings={settings}
-                  orderId={orderId}
-                  onReset={handleReset}
-                />
-              </motion.div>
-            )}
-          </AnimatePresence>
-        )}
+          {step === STEP.PRINTING && (
+            <motion.div key="printing" initial={{ opacity: 0 }} animate={{ opacity: 1 }}>
+              <PrintStatus
+                fileInfo={fileInfo}
+                settings={settings}
+                orderId={orderId}
+                onReset={handleReset}
+              />
+            </motion.div>
+          )}
+        </AnimatePresence>
       </main>
 
       {/* Payment Modal */}
