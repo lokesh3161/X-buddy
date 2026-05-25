@@ -1,5 +1,5 @@
 import { useRef, useState } from 'react'
-import { useResume } from '../resumeStore'
+import { useResume } from '../resumeStore.jsx'
 import { getTemplate } from '../templates'
 
 export default function ResumePreview({ onPrint }) {

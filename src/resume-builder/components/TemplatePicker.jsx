@@ -1,4 +1,4 @@
-import { useResume } from '../resumeStore'
+import { useResume } from '../resumeStore.jsx'
 import { TEMPLATES } from '../templates'
 
 export default function TemplatePicker() {

@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { useResume } from '../resumeStore'
+import { useResume } from '../resumeStore.jsx'
 
 const inputCls = 'w-full bg-neutral-900 border border-neutral-700 rounded-lg px-3 py-2 text-white text-xs placeholder:text-neutral-500 focus:outline-none focus:border-violet-500 focus:ring-1 focus:ring-violet-500/20 transition-all'
 const labelCls = 'text-gray-400 text-xs mb-1 block'

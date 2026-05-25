@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { motion } from 'framer-motion'
-import { ResumeProvider } from './resumeStore'
+import { ResumeProvider } from './resumeStore.jsx'
 import ResumeForm     from './components/ResumeForm'
 import ResumePreview  from './components/ResumePreview'
 import TemplatePicker from './components/TemplatePicker'
