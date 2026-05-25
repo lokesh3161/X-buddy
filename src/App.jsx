@@ -15,7 +15,9 @@ pdfjsLib.GlobalWorkerOptions.workerSrc = new URL(
   import.meta.url
 ).toString()
 
-const STEP = { HERO: 'hero', UPLOAD: 'upload', SETTINGS: 'settings', PRINTING: 'printing' }
+import ResumeBuilder from './resume-builder/ResumeBuilder'
+
+const STEP = { HERO: 'hero', UPLOAD: 'upload', SETTINGS: 'settings', PRINTING: 'printing', RESUME: 'resume' }
 const DEFAULT_SETTINGS = { colorMode: 'bw', sideMode: 'single', copies: 1 }
 
 async function getPageCountFromFile(file) {
@@ -107,6 +109,12 @@ export default function App() {
           <div className="hidden md:flex items-center gap-6 text-xs text-gray-500">
             <a href="#academic-toolkit" className="hover:text-purple-400 transition-colors">Academic Toolkit</a>
             <button
+              onClick={() => setStep(STEP.RESUME)}
+              className="hover:text-purple-400 transition-colors"
+            >
+              Resume Builder
+            </button>
+            <button
               onClick={() => setStep(STEP.UPLOAD)}
               className="px-4 py-1.5 bg-purple-600 hover:bg-purple-500 text-white rounded-lg font-semibold transition-all"
             >
@@ -167,6 +175,15 @@ export default function App() {
                   </motion.div>
                 )}
               </AnimatePresence>
+            </motion.div>
+          )}
+
+          {step === STEP.RESUME && (
+            <motion.div key="resume" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="h-screen">
+              <ResumeBuilder
+                onPrint={handleExternalPrint}
+                onBack={handleReset}
+              />
             </motion.div>
           )}
 
