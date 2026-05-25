@@ -6,17 +6,30 @@ import PrintSettings from './components/PrintSettings'
 import PriceCard from './components/PriceCard'
 import PaymentModal from './components/PaymentModal'
 import PrintStatus from './components/PrintStatus'
+import AcademicToolkit from './components/AcademicToolkit'
 import { calcTotal } from './utils/pricing'
+import * as pdfjsLib from 'pdfjs-dist'
+// Use the same local bundled worker as UploadSection — avoids CDN version mismatch
+pdfjsLib.GlobalWorkerOptions.workerSrc = new URL(
+  'pdfjs-dist/build/pdf.worker.min.mjs',
+  import.meta.url
+).toString()
 
 const STEP = { HERO: 'hero', UPLOAD: 'upload', SETTINGS: 'settings', PRINTING: 'printing' }
 const DEFAULT_SETTINGS = { colorMode: 'bw', sideMode: 'single', copies: 1 }
 
+async function getPageCountFromFile(file) {
+  const buffer = await file.arrayBuffer()
+  const pdf    = await pdfjsLib.getDocument({ data: buffer }).promise
+  return pdf.numPages
+}
+
 export default function App() {
-  const [step, setStep] = useState(STEP.HERO)
-  const [fileInfo, setFileInfo] = useState(null)
-  const [settings, setSettings] = useState(DEFAULT_SETTINGS)
+  const [step, setStep]           = useState(STEP.HERO)
+  const [fileInfo, setFileInfo]   = useState(null)
+  const [settings, setSettings]   = useState(DEFAULT_SETTINGS)
   const [showPayment, setShowPayment] = useState(false)
-  const [orderId, setOrderId] = useState(null)
+  const [orderId, setOrderId]     = useState(null)
   const settingsRef = useRef(null)
 
   const total = fileInfo
@@ -46,6 +59,24 @@ export default function App() {
     setTimeout(() => settingsRef.current?.scrollIntoView({ behavior: 'smooth' }), 100)
   }
 
+  // Called when user clicks Print on a Quick Form (URL) or Letter Generator (File)
+  async function handleExternalPrint(fileOrUrl, name) {
+    let file
+    if (typeof fileOrUrl === 'string') {
+      // Quick Form — fetch PDF from public/forms/
+      const res    = await fetch(fileOrUrl)
+      const blob   = await res.blob()
+      file = new File([blob], name + '.pdf', { type: 'application/pdf' })
+    } else {
+      file = fileOrUrl
+    }
+    const totalPages = await getPageCountFromFile(file)
+    setFileInfo({ file, name: file.name, totalPages })
+    setStep(STEP.SETTINGS)
+    window.scrollTo({ top: 0, behavior: 'smooth' })
+    setTimeout(() => settingsRef.current?.scrollIntoView({ behavior: 'smooth' }), 300)
+  }
+
   function handleOrderSuccess(id) {
     setOrderId(id)
     setShowPayment(false)
@@ -72,7 +103,17 @@ export default function App() {
           </div>
           <span className="text-white font-bold text-lg">X Buddy</span>
         </button>
-        {step !== STEP.HERO && (
+        {step === STEP.HERO ? (
+          <div className="hidden md:flex items-center gap-6 text-xs text-gray-500">
+            <a href="#academic-toolkit" className="hover:text-purple-400 transition-colors">Academic Toolkit</a>
+            <button
+              onClick={() => setStep(STEP.UPLOAD)}
+              className="px-4 py-1.5 bg-purple-600 hover:bg-purple-500 text-white rounded-lg font-semibold transition-all"
+            >
+              Print Now
+            </button>
+          </div>
+        ) : (
           <div className="flex items-center gap-2 text-xs text-gray-500">
             {['Upload', 'Settings', 'Pay & Print'].map((label, i) => {
               const stepKeys = [STEP.UPLOAD, STEP.SETTINGS, STEP.PRINTING]
@@ -97,6 +138,15 @@ export default function App() {
           {step === STEP.HERO && (
             <motion.div key="hero" exit={{ opacity: 0, y: -20 }} transition={{ duration: 0.3 }}>
               <Hero onGetStarted={() => setStep(STEP.UPLOAD)} />
+              {/* Divider */}
+              <div className="border-t border-white/5" />
+              <div id="academic-toolkit">
+                <AcademicToolkit onPrint={handleExternalPrint} />
+              </div>
+              {/* Footer */}
+              <div className="border-t border-white/5 py-8 text-center">
+                <p className="text-gray-700 text-xs">X Buddy — Smart Campus Utility Platform</p>
+              </div>
             </motion.div>
           )}
 

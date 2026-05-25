@@ -13,14 +13,24 @@ body {
 
 /* Custom scrollbar */
 ::-webkit-scrollbar {
-  width: 6px;
+  width: 5px;
+  height: 5px;
 }
 ::-webkit-scrollbar-track {
-  background: #111118;
+  background: transparent;
 }
 ::-webkit-scrollbar-thumb {
+  background: #3b3b52;
+  border-radius: 4px;
+}
+::-webkit-scrollbar-thumb:hover {
   background: #7c3aed;
-  border-radius: 3px;
+}
+
+/* Thin scrollbar utility */
+.scrollbar-thin {
+  scrollbar-width: thin;
+  scrollbar-color: #3b3b52 transparent;
 }
 
 /* Glow effect utility */
