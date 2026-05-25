@@ -179,7 +179,7 @@ export default function App() {
           )}
 
           {step === STEP.RESUME && (
-            <motion.div key="resume" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="h-[calc(100vh-4rem)]">
+            <motion.div key="resume" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} style={{ height: 'calc(100vh - 4rem)' }}>
               <ResumeBuilder
                 onPrint={handleExternalPrint}
                 onBack={handleReset}

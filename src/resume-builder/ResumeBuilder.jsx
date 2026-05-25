@@ -44,12 +44,15 @@ export default function ResumeBuilder({ onPrint, onBack }) {
             <button
               key={tab}
               onClick={() => setMobileTab(tab)}
-              className={`flex-1 py-2.5 text-xs font-semibold transition-all ${
+              className={`flex-1 py-3 text-xs font-semibold transition-all ${
                 mobileTab === tab
-                  ? 'text-purple-400 border-b-2 border-purple-500'
-                  : 'text-gray-600'
+                  ? 'text-purple-400 border-b-2 border-purple-500 bg-purple-500/5'
+                  : 'text-gray-500 hover:text-gray-300'
               }`}
             >
+              {tab === 'form' && '📝 '}
+              {tab === 'preview' && '👁 '}
+              {tab === 'templates' && '🎨 '}
               {TAB_LABELS[tab]}
             </button>
           ))}
@@ -59,19 +62,25 @@ export default function ResumeBuilder({ onPrint, onBack }) {
         <div className="flex flex-1 overflow-hidden">
 
           {/* LEFT — Form */}
-          <div className={`${mobileTab === 'form' ? 'flex' : 'hidden'} lg:flex w-full lg:w-72 xl:w-80 flex-shrink-0 flex-col border-r border-white/[0.05] overflow-y-auto scrollbar-thin bg-[#0a0a0f]`}>
+          <div className={`${
+            mobileTab === 'form' ? 'flex' : 'hidden'
+          } lg:flex w-full lg:w-72 xl:w-80 flex-shrink-0 flex-col border-r border-white/[0.05] overflow-y-auto scrollbar-thin bg-[#0a0a0f]`}>
             <div className="p-4">
               <ResumeForm />
             </div>
           </div>
 
           {/* CENTER — Preview */}
-          <div className={`${mobileTab === 'preview' ? 'flex' : 'hidden'} lg:flex flex-1 flex-col overflow-hidden`}>
+          <div className={`${
+            mobileTab === 'preview' ? 'flex' : 'hidden'
+          } lg:flex flex-1 flex-col overflow-hidden`}>
             <ResumePreview onPrint={onPrint} />
           </div>
 
-          {/* RIGHT — Templates + Actions */}
-          <div className={`${mobileTab === 'templates' ? 'flex' : 'hidden'} lg:flex w-full lg:w-56 xl:w-64 flex-shrink-0 flex-col border-l border-white/[0.05] overflow-y-auto scrollbar-thin bg-[#0a0a0f]`}>
+          {/* RIGHT — Templates */}
+          <div className={`${
+            mobileTab === 'templates' ? 'flex' : 'hidden'
+          } lg:flex w-full lg:w-56 xl:w-64 flex-shrink-0 flex-col border-l border-white/[0.05] overflow-y-auto scrollbar-thin bg-[#0a0a0f]`}>
             <div className="p-4">
               <TemplatePicker />
             </div>
