@@ -13,7 +13,7 @@ export default function ResumeBuilder({ onPrint, onBack }) {
 
   return (
     <ResumeProvider>
-      <div className="flex flex-col h-screen bg-[#0a0a0f]">
+      <div className="flex flex-col h-full bg-[#0a0a0f]">
         {/* Header */}
         <div className="flex items-center justify-between px-4 sm:px-6 py-3 border-b border-white/5 flex-shrink-0 bg-[#0a0a0f]/90 backdrop-blur-md">
           <div className="flex items-center gap-3">

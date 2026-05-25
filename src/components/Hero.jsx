@@ -1,6 +1,6 @@
 import { motion } from 'framer-motion'
 
-export default function Hero({ onGetStarted }) {
+export default function Hero({ onGetStarted, onResumeBuilder }) {
   return (
     <section className="relative min-h-screen flex flex-col items-center justify-center px-4 overflow-hidden">
       {/* Background glow orbs */}
@@ -43,7 +43,15 @@ export default function Hero({ onGetStarted }) {
             onClick={onGetStarted}
             className="px-8 py-4 bg-purple-600 hover:bg-purple-500 text-white font-semibold rounded-2xl text-lg glow-purple transition-all duration-200"
           >
-            Get Started →
+            Print Now →
+          </motion.button>
+          <motion.button
+            whileHover={{ scale: 1.05 }}
+            whileTap={{ scale: 0.97 }}
+            onClick={onResumeBuilder}
+            className="px-8 py-4 bg-white/5 hover:bg-white/10 text-gray-300 font-semibold rounded-2xl text-lg border border-white/10 transition-all duration-200"
+          >
+            Build Resume ✦
           </motion.button>
           <motion.a
             whileHover={{ scale: 1.05 }}

@@ -121,7 +121,7 @@ export default function App() {
               Print Now
             </button>
           </div>
-        ) : (
+        ) : step === STEP.RESUME ? null : (
           <div className="flex items-center gap-2 text-xs text-gray-500">
             {['Upload', 'Settings', 'Pay & Print'].map((label, i) => {
               const stepKeys = [STEP.UPLOAD, STEP.SETTINGS, STEP.PRINTING]
@@ -145,7 +145,7 @@ export default function App() {
         <AnimatePresence mode="wait">
           {step === STEP.HERO && (
             <motion.div key="hero" exit={{ opacity: 0, y: -20 }} transition={{ duration: 0.3 }}>
-              <Hero onGetStarted={() => setStep(STEP.UPLOAD)} />
+              <Hero onGetStarted={() => setStep(STEP.UPLOAD)} onResumeBuilder={() => setStep(STEP.RESUME)} />
               {/* Divider */}
               <div className="border-t border-white/5" />
               <div id="academic-toolkit">
@@ -179,7 +179,7 @@ export default function App() {
           )}
 
           {step === STEP.RESUME && (
-            <motion.div key="resume" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="h-screen">
+            <motion.div key="resume" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="h-[calc(100vh-4rem)]">
               <ResumeBuilder
                 onPrint={handleExternalPrint}
                 onBack={handleReset}
