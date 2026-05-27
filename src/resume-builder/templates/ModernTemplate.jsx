@@ -28,7 +28,7 @@ function Tag({ children }) {
   )
 }
 
-export default function ModernTemplate({ data }) {
+export default function ModernTemplate({ data, fontScale = 1 }) {
   const { personal, education, skills, projects, experience, certifications, achievements } = data
   const edu = education[0] || {}
 
@@ -38,15 +38,17 @@ export default function ModernTemplate({ data }) {
     ...skills.tools.split(','),
   ].map(s => s.trim()).filter(Boolean)
 
+  const f = (n) => `${n * fontScale}px`
+
   return (
     <div style={{
-      fontFamily: "'Georgia', serif", fontSize: '10.5px', color: '#1a1a2e',
+      fontFamily: "'Georgia', serif", fontSize: f(10.5), color: '#1a1a2e',
       lineHeight: '1.6', padding: '28mm 22mm', background: '#fff',
       minHeight: '297mm', width: '210mm', boxSizing: 'border-box',
     }}>
       {/* Header */}
       <div style={{ marginBottom: '20px', borderBottom: '2px solid #7c3aed', paddingBottom: '14px' }}>
-        <div style={{ fontSize: '26px', fontWeight: '800', color: '#1a1a2e', letterSpacing: '-0.5px', fontFamily: 'Arial, sans-serif' }}>
+        <div style={{ fontSize: f(26), fontWeight: '800', color: '#1a1a2e', letterSpacing: '-0.5px', fontFamily: 'Arial, sans-serif' }}>
           {personal.name || 'Your Name'}
         </div>
         <div style={{ display: 'flex', flexWrap: 'wrap', gap: '12px', marginTop: '6px', fontSize: '9.5px', color: '#555' }}>

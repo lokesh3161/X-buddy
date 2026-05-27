@@ -31,7 +31,8 @@ function MainSection({ title, children }) {
   )
 }
 
-export default function CreativeTemplate({ data }) {
+export default function CreativeTemplate({ data, fontScale = 1 }) {
+  const f = (n) => `${n * fontScale}px`
   const { personal, education, skills, projects, experience, certifications, achievements } = data
   const edu = education[0] || {}
 
@@ -39,13 +40,13 @@ export default function CreativeTemplate({ data }) {
 
   return (
     <div style={{
-      fontFamily: "'Arial', sans-serif", fontSize: '10px', color: '#1a1a2e',
+      fontFamily: "'Arial', sans-serif", fontSize: f(10), color: '#1a1a2e',
       background: '#fff', minHeight: '297mm', width: '210mm',
       boxSizing: 'border-box', display: 'flex', flexDirection: 'column',
     }}>
       {/* Top header bar */}
       <div style={{ background: '#4c1d95', padding: '20px 24px', color: '#fff' }}>
-        <div style={{ fontSize: '24px', fontWeight: '800', letterSpacing: '-0.5px' }}>
+        <div style={{ fontSize: f(24), fontWeight: '800', letterSpacing: '-0.5px' }}>
           {personal.name || 'Your Name'}
         </div>
         <div style={{ display: 'flex', flexWrap: 'wrap', gap: '14px', marginTop: '6px', fontSize: '9px', opacity: 0.85 }}>

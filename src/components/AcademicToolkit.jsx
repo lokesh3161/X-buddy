@@ -1,6 +1,7 @@
 import { useState, useRef, useEffect } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { jsPDF } from 'jspdf'
+import html2canvas from 'html2canvas'
 import { DOC_TYPES, generateDocument, getDocTitle } from '../utils/letterTemplates'
 
 // ── SVG Icons (no emojis) ─────────────────────────────────────────────────────
@@ -40,21 +41,47 @@ const FIELD_META = {
   extra:      { label: 'Additional Details',   placeholder: 'Any extra info (optional)'},
 }
 
-// ── PDF generator ─────────────────────────────────────────────────────────────
-function makePdf(text, title) {
-  const doc    = new jsPDF({ unit: 'mm', format: 'a4' })
-  const margin = 22
-  const width  = 210 - margin * 2
-  doc.setFont('helvetica', 'normal')
-  doc.setFontSize(11)
-  let y = margin
-  const lines = doc.splitTextToSize(text, width)
-  lines.forEach(line => {
-    if (y > 272) { doc.addPage(); y = margin }
-    doc.text(line, margin, y)
-    y += 6.5
+// ── PDF export via html2canvas → jsPDF (pixel-perfect, no blank pages) ────────
+async function exportToPdf(element, filename) {
+  // Wait one frame so DOM is fully painted
+  await new Promise(r => requestAnimationFrame(() => requestAnimationFrame(r)))
+
+  const canvas = await html2canvas(element, {
+    scale:            2,          // retina quality
+    useCORS:          true,
+    backgroundColor:  '#ffffff',
+    logging:          false,
+    windowWidth:      element.scrollWidth,
+    windowHeight:     element.scrollHeight,
   })
-  return doc
+
+  const imgData  = canvas.toDataURL('image/jpeg', 0.95)
+  const pdf      = new jsPDF({ unit: 'mm', format: 'a4', orientation: 'portrait' })
+  const pageW    = 210
+  const pageH    = 297
+  const imgW     = pageW
+  const imgH     = (canvas.height * pageW) / canvas.width
+
+  let yOffset = 0
+  let remaining = imgH
+
+  while (remaining > 0) {
+    const sliceH = Math.min(remaining, pageH)
+    // For multi-page: clip each page slice
+    const sliceCanvas = document.createElement('canvas')
+    const scale       = canvas.width / pageW
+    sliceCanvas.width  = canvas.width
+    sliceCanvas.height = sliceH * scale
+    const ctx = sliceCanvas.getContext('2d')
+    ctx.drawImage(canvas, 0, yOffset * scale, canvas.width, sliceH * scale, 0, 0, canvas.width, sliceH * scale)
+    const sliceData = sliceCanvas.toDataURL('image/jpeg', 0.95)
+    if (yOffset > 0) pdf.addPage()
+    pdf.addImage(sliceData, 'JPEG', 0, 0, pageW, sliceH)
+    yOffset   += sliceH
+    remaining -= sliceH
+  }
+
+  return pdf
 }
 
 // ── Document Modal ────────────────────────────────────────────────────────────
@@ -63,8 +90,16 @@ function DocModal({ docType, onClose, onPrint }) {
   const [form,      setForm]      = useState(EMPTY)
   const [content,   setContent]   = useState('')
   const [generated, setGenerated] = useState(false)
-  const [mobileTab, setMobileTab] = useState('form') // 'form' | 'preview'
+  const [mobileTab, setMobileTab] = useState('form')
+  const [fontSize,  setFontSize]  = useState(11)       // pt
+  const [exporting, setExporting] = useState(false)
+  const [toast,     setToast]     = useState('')
   const previewRef = useRef()
+
+  function showToast(msg) {
+    setToast(msg)
+    setTimeout(() => setToast(''), 2500)
+  }
 
   const fields = FIELDS[docType.id] || FIELDS.leave
 
@@ -81,18 +116,33 @@ function DocModal({ docType, onClose, onPrint }) {
     setMobileTab('preview') // auto-switch to preview on mobile after generate
   }
 
-  function handleDownload() {
-    const doc = makePdf(content, docType.label)
-    doc.save(`${docType.id}.pdf`)
+  async function handleDownload() {
+    if (!previewRef.current) return
+    setExporting(true)
+    try {
+      const pdf = await exportToPdf(previewRef.current, docType.id)
+      pdf.save(`${docType.id}.pdf`)
+      showToast('PDF downloaded!')
+    } catch (e) {
+      showToast('Export failed — try again')
+    } finally {
+      setExporting(false)
+    }
   }
 
   async function handlePrint() {
-    const text = previewRef.current?.innerText || content
-    const doc  = makePdf(text, docType.label)
-    const blob = doc.output('blob')
-    const file = new File([blob], `${docType.id}.pdf`, { type: 'application/pdf' })
-    onPrint(file)
-    onClose()
+    if (!previewRef.current) return
+    setExporting(true)
+    try {
+      const pdf  = await exportToPdf(previewRef.current, docType.id)
+      const blob = pdf.output('blob')
+      const file = new File([blob], `${docType.id}.pdf`, { type: 'application/pdf' })
+      onPrint(file)
+      onClose()
+    } catch {
+      showToast('Export failed — try again')
+      setExporting(false)
+    }
   }
 
   useEffect(() => {
@@ -102,7 +152,8 @@ function DocModal({ docType, onClose, onPrint }) {
   }, [onClose])
 
   // ── shared form panel content ──
-  const FormPanel = (
+  function FormPanel() {
+    return (
     <div className="h-full overflow-y-auto p-4 space-y-3 scrollbar-thin">
       <p className="text-gray-500 text-xs font-medium uppercase tracking-wider mb-2">Document Details</p>
       {fields.map(field => {
@@ -137,28 +188,43 @@ function DocModal({ docType, onClose, onPrint }) {
         Generate Document
       </button>
     </div>
-  )
+    )
+  }
 
   // ── shared preview panel content ──
-  const PreviewPanel = (
+  function PreviewPanel() {
+    return (
     <div className="h-full flex flex-col overflow-hidden bg-[#080810]">
       {/* toolbar */}
-      <div className="flex items-center justify-between px-4 py-2.5 border-b border-white/5 flex-shrink-0">
-        <p className="text-gray-600 text-xs">
-          {generated ? 'Tap to edit' : 'Fill the form and generate'}
-        </p>
+      <div className="flex items-center justify-between px-4 py-2.5 border-b border-white/5 flex-shrink-0 gap-2 flex-wrap">
+        <div className="flex items-center gap-1.5">
+          <button
+            onClick={() => setFontSize(s => Math.max(8, s - 1))}
+            className="w-7 h-7 rounded-lg bg-white/5 hover:bg-white/10 text-gray-400 text-xs font-bold transition-all flex items-center justify-center"
+          >A-</button>
+          <span className="text-gray-600 text-xs w-8 text-center">{fontSize}pt</span>
+          <button
+            onClick={() => setFontSize(s => Math.min(18, s + 1))}
+            className="w-7 h-7 rounded-lg bg-white/5 hover:bg-white/10 text-gray-400 text-xs font-bold transition-all flex items-center justify-center"
+          >A+</button>
+        </div>
         {generated && (
           <div className="flex items-center gap-1.5">
             <button
               onClick={handleDownload}
-              className="flex items-center gap-1 px-2.5 py-1.5 rounded-lg bg-white/5 hover:bg-white/10 text-gray-400 text-xs font-medium transition-all"
+              disabled={exporting}
+              className="flex items-center gap-1 px-2.5 py-1.5 rounded-lg bg-white/5 hover:bg-white/10 disabled:opacity-50 text-gray-400 text-xs font-medium transition-all"
             >
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="w-3 h-3"><path strokeLinecap="round" strokeLinejoin="round" d="M3 16.5v2.25A2.25 2.25 0 005.25 21h13.5A2.25 2.25 0 0021 18.75V16.5M16.5 12L12 16.5m0 0L7.5 12m4.5 4.5V3" /></svg>
-              <span className="hidden sm:inline">Download</span>
+              {exporting
+                ? <div className="w-3 h-3 border border-gray-500 border-t-gray-300 rounded-full animate-spin" />
+                : <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="w-3 h-3"><path strokeLinecap="round" strokeLinejoin="round" d="M3 16.5v2.25A2.25 2.25 0 005.25 21h13.5A2.25 2.25 0 0021 18.75V16.5M16.5 12L12 16.5m0 0L7.5 12m4.5 4.5V3" /></svg>
+              }
+              <span className="hidden sm:inline">{exporting ? 'Generating...' : 'Download'}</span>
             </button>
             <button
               onClick={handlePrint}
-              className="flex items-center gap-1 px-2.5 py-1.5 rounded-lg bg-purple-600 hover:bg-purple-500 text-white text-xs font-semibold transition-all"
+              disabled={exporting}
+              className="flex items-center gap-1 px-2.5 py-1.5 rounded-lg bg-purple-600 hover:bg-purple-500 disabled:opacity-50 text-white text-xs font-semibold transition-all"
             >
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="w-3 h-3"><path strokeLinecap="round" strokeLinejoin="round" d="M6.72 13.829c-.24.03-.48.062-.72.096m.72-.096a42.415 42.415 0 0110.56 0m-10.56 0L6.34 18m10.94-4.171c.24.03.48.062.72.096m-.72-.096L17.66 18m0 0l.229 2.523a1.125 1.125 0 01-1.12 1.227H7.231c-.662 0-1.18-.568-1.12-1.227L6.34 18m11.318 0h1.091A2.25 2.25 0 0021 15.75V9.456c0-1.081-.768-2.015-1.837-2.175a48.055 48.055 0 00-1.913-.247M6.34 18H5.25A2.25 2.25 0 013 15.75V9.456c0-1.081.768-2.015 1.837-2.175a48.041 48.041 0 011.913-.247m10.5 0a48.536 48.536 0 00-10.5 0m10.5 0V3.375c0-.621-.504-1.125-1.125-1.125h-8.25c-.621 0-1.125.504-1.125 1.125v3.659M18 10.5h.008v.008H18V10.5zm-3 0h.008v.008H15V10.5z" /></svg>
               Print
@@ -166,15 +232,33 @@ function DocModal({ docType, onClose, onPrint }) {
           </div>
         )}
       </div>
-      {/* paper */}
-      <div className="flex-1 overflow-y-auto p-4 sm:p-8 flex justify-center scrollbar-thin">
+
+      <AnimatePresence>
+        {toast && (
+          <motion.div
+            initial={{ opacity: 0, y: -8 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0 }}
+            className="mx-4 mt-2 px-4 py-2 rounded-xl bg-green-500/10 border border-green-500/20 text-green-400 text-xs text-center flex-shrink-0"
+          >
+            {toast}
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      <div className="flex-1 overflow-y-auto p-4 sm:p-8 flex justify-center">
         {generated ? (
           <div
             ref={previewRef}
             contentEditable
             suppressContentEditableWarning
-            className="w-full max-w-[210mm] min-h-[297mm] bg-white text-gray-900 rounded-sm shadow-2xl px-6 py-10 sm:p-[22mm] text-[10pt] sm:text-[11pt] leading-relaxed whitespace-pre-wrap outline-none focus:ring-2 focus:ring-purple-500/30"
-            style={{ fontFamily: 'Georgia, serif', lineHeight: '1.8' }}
+            className="w-full max-w-[210mm] bg-white text-gray-900 rounded-sm shadow-2xl px-6 py-10 sm:p-[22mm] whitespace-pre-wrap outline-none focus:ring-2 focus:ring-purple-500/30"
+            style={{
+              fontFamily: 'Georgia, serif',
+              fontSize:   `${fontSize}pt`,
+              lineHeight: fontSize <= 10 ? '1.6' : fontSize >= 14 ? '2.2' : '1.9',
+              minHeight:  '297mm',
+            }}
           >
             {content}
           </div>
@@ -189,7 +273,8 @@ function DocModal({ docType, onClose, onPrint }) {
         )}
       </div>
     </div>
-  )
+    )
+  }
 
   return (
     <motion.div
@@ -249,14 +334,13 @@ function DocModal({ docType, onClose, onPrint }) {
           <div className={`${
             mobileTab === 'form' ? 'flex' : 'hidden'
           } sm:flex w-full sm:w-80 flex-shrink-0 sm:border-r border-white/[0.06] flex-col`}>
-            {FormPanel}
+            <FormPanel />
           </div>
 
-          {/* Preview — always visible on desktop, tab-controlled on mobile */}
           <div className={`${
             mobileTab === 'preview' ? 'flex' : 'hidden'
           } sm:flex flex-1 flex-col overflow-hidden`}>
-            {PreviewPanel}
+            <PreviewPanel />
           </div>
         </div>
       </motion.div>

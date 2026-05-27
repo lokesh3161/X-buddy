@@ -15,19 +15,20 @@ function Section({ title, children }) {
   )
 }
 
-export default function MinimalTemplate({ data }) {
+export default function MinimalTemplate({ data, fontScale = 1 }) {
+  const f = (n) => `${n * fontScale}px`
   const { personal, education, skills, projects, experience, certifications, achievements } = data
   const edu = education[0] || {}
 
   return (
     <div style={{
-      fontFamily: "'Arial', sans-serif", fontSize: '10.5px', color: '#111',
+      fontFamily: "'Arial', sans-serif", fontSize: f(10.5), color: '#111',
       lineHeight: '1.55', padding: '25mm 20mm', background: '#fff',
       minHeight: '297mm', width: '210mm', boxSizing: 'border-box',
     }}>
       {/* Header */}
       <div style={{ textAlign: 'center', marginBottom: '16px', borderBottom: '1px solid #111', paddingBottom: '12px' }}>
-        <div style={{ fontSize: '22px', fontWeight: '800', letterSpacing: '1px' }}>
+        <div style={{ fontSize: f(22), fontWeight: '800', letterSpacing: '1px' }}>
           {personal.name || 'YOUR NAME'}
         </div>
         <div style={{ fontSize: '9px', color: '#333', marginTop: '5px', display: 'flex', justifyContent: 'center', flexWrap: 'wrap', gap: '10px' }}>

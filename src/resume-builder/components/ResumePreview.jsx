@@ -3,13 +3,18 @@ import { useResume } from '../resumeStore.jsx'
 import { getTemplate } from '../templates'
 
 export default function ResumePreview({ onPrint }) {
-  const { resume } = useResume()
+  const { resume }  = useResume()
   const previewRef  = useRef(null)
   const [exporting, setExporting] = useState(false)
-  const [zoom, setZoom]           = useState(0.75)
+  const [zoom,      setZoom]      = useState(0.75)
+  const [fontScale, setFontScale] = useState(1)
 
-  const tpl = getTemplate(resume.template)
+  const tpl               = getTemplate(resume.template)
   const TemplateComponent = tpl.component
+
+  // Calculate scale to always fit content in one A4 page
+  const A4_PX = 1123 // 297mm at 96dpi
+  const A4_W  = 794  // 210mm at 96dpi
 
   async function captureAndExport(action) {
     setExporting(true)
@@ -17,57 +22,45 @@ export default function ResumePreview({ onPrint }) {
       const html2canvas = (await import('html2canvas')).default
       const { jsPDF }   = await import('jspdf')
 
-      const canvas = await html2canvas(previewRef.current, {
-        scale: 2,
-        useCORS: true,
+      // Create off-screen clone at true A4 size with same font scaling
+      const clone = document.createElement('div')
+      clone.style.cssText = `position:fixed;left:-9999px;top:0;width:${A4_W}px;height:${A4_PX}px;overflow:hidden;background:#fff;z-index:-1;`
+      const inner = document.createElement('div')
+      inner.style.cssText = `width:${A4_W}px;transform-origin:top left;transform:scale(${1 / fontScale});font-size:${fontScale * 100}%;`
+      inner.innerHTML = previewRef.current.innerHTML
+      clone.appendChild(inner)
+      document.body.appendChild(clone)
+
+      await new Promise(r => requestAnimationFrame(() => requestAnimationFrame(r)))
+
+      const canvas = await html2canvas(clone, {
+        scale:           2,
+        useCORS:         true,
         backgroundColor: '#ffffff',
-        // Capture at actual A4 size, not zoomed
-        width:  previewRef.current.scrollWidth,
-        height: previewRef.current.scrollHeight,
+        logging:         false,
+        width:           A4_W,
+        height:          A4_PX,
       })
 
-      const imgData = canvas.toDataURL('image/png')
-      const pdf     = new jsPDF({ unit: 'mm', format: 'a4', orientation: 'portrait' })
-      const pdfW    = pdf.internal.pageSize.getWidth()
-      const pdfH    = pdf.internal.pageSize.getHeight()
+      document.body.removeChild(clone)
 
-      // Multi-page support
-      const canvasH     = canvas.height
-      const canvasW     = canvas.width
-      const pageH       = Math.floor(canvasH * (pdfW / canvasW) > pdfH
-        ? canvasH / Math.ceil((canvasH * (pdfW / canvasW)) / pdfH)
-        : canvasH)
-      const totalPages  = Math.ceil(canvasH / pageH)
+      // Single page PDF — always one page
+      const pdf = new jsPDF({ unit: 'mm', format: 'a4', orientation: 'portrait' })
+      pdf.addImage(canvas.toDataURL('image/jpeg', 0.95), 'JPEG', 0, 0, 210, 297)
 
-      for (let i = 0; i < totalPages; i++) {
-        if (i > 0) pdf.addPage()
-        const srcY    = i * pageH
-        const sliceH  = Math.min(pageH, canvasH - srcY)
-        const pageCanvas = document.createElement('canvas')
-        pageCanvas.width  = canvasW
-        pageCanvas.height = sliceH
-        pageCanvas.getContext('2d').drawImage(canvas, 0, srcY, canvasW, sliceH, 0, 0, canvasW, sliceH)
-        const pageImg = pageCanvas.toDataURL('image/png')
-        const imgH    = (sliceH / canvasW) * pdfW
-        pdf.addImage(pageImg, 'PNG', 0, 0, pdfW, imgH)
-      }
+      const name = resume.personal?.name
+        ? `${resume.personal.name.replace(/\s+/g, '_')}_Resume.pdf`
+        : 'Resume.pdf'
 
       if (action === 'download') {
-        const name = resume.personal.name
-          ? `${resume.personal.name.replace(/\s+/g, '_')}_Resume.pdf`
-          : 'Resume.pdf'
         pdf.save(name)
       } else {
-        // Inject into X Buddy print flow
-        const blob = pdf.output('blob')
-        const name = resume.personal.name
-          ? `${resume.personal.name.replace(/\s+/g, '_')}_Resume.pdf`
-          : 'Resume.pdf'
-        const file = new File([blob], name, { type: 'application/pdf' })
+        const file = new File([pdf.output('blob')], name, { type: 'application/pdf' })
         onPrint(file)
       }
     } catch (err) {
       console.error('Export failed:', err)
+      alert('Export failed. Please try again.')
     } finally {
       setExporting(false)
     }
@@ -78,10 +71,32 @@ export default function ResumePreview({ onPrint }) {
       {/* Toolbar */}
       <div className="flex items-center justify-between px-4 py-2.5 border-b border-white/5 flex-shrink-0 bg-[#0a0a0f]">
         <div className="flex items-center gap-2">
+          <div className="flex items-center gap-1 mr-2">
+            <div className="w-1.5 h-1.5 rounded-full bg-green-500" />
+            <span className="text-gray-600 text-xs">Click on resume to edit</span>
+          </div>
+          <span className="text-gray-700 text-xs mx-1">|</span>
+          <span className="text-gray-600 text-xs">Font</span>
+          <button
+            onClick={() => setFontScale(s => Math.max(0.7, +(s - 0.05).toFixed(2)))}
+            className="w-6 h-6 rounded bg-white/5 hover:bg-white/10 text-gray-400 text-xs flex items-center justify-center transition-all"
+          >A−</button>
+          <span className="text-gray-500 text-xs w-8 text-center">{Math.round(fontScale * 100)}%</span>
+          <button
+            onClick={() => setFontScale(s => Math.min(1.4, +(s + 0.05).toFixed(2)))}
+            className="w-6 h-6 rounded bg-white/5 hover:bg-white/10 text-gray-400 text-xs flex items-center justify-center transition-all"
+          >A+</button>
+          <span className="text-gray-700 text-xs mx-1">|</span>
           <span className="text-gray-600 text-xs">Zoom</span>
-          <button onClick={() => setZoom(z => Math.max(0.4, z - 0.1))} className="w-6 h-6 rounded bg-white/5 hover:bg-white/10 text-gray-400 text-xs flex items-center justify-center transition-all">−</button>
+          <button
+            onClick={() => setZoom(z => Math.max(0.4, +(z - 0.1).toFixed(1)))}
+            className="w-6 h-6 rounded bg-white/5 hover:bg-white/10 text-gray-400 text-xs flex items-center justify-center transition-all"
+          >−</button>
           <span className="text-gray-500 text-xs w-10 text-center">{Math.round(zoom * 100)}%</span>
-          <button onClick={() => setZoom(z => Math.min(1.2, z + 0.1))} className="w-6 h-6 rounded bg-white/5 hover:bg-white/10 text-gray-400 text-xs flex items-center justify-center transition-all">+</button>
+          <button
+            onClick={() => setZoom(z => Math.min(1.2, +(z + 0.1).toFixed(1)))}
+            className="w-6 h-6 rounded bg-white/5 hover:bg-white/10 text-gray-400 text-xs flex items-center justify-center transition-all"
+          >+</button>
         </div>
         <div className="flex items-center gap-2">
           <button
@@ -89,9 +104,10 @@ export default function ResumePreview({ onPrint }) {
             disabled={exporting}
             className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-white/5 hover:bg-white/10 text-gray-300 text-xs font-medium transition-all disabled:opacity-50"
           >
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="w-3.5 h-3.5">
-              <path strokeLinecap="round" strokeLinejoin="round" d="M3 16.5v2.25A2.25 2.25 0 005.25 21h13.5A2.25 2.25 0 0021 18.75V16.5M16.5 12L12 16.5m0 0L7.5 12m4.5 4.5V3" />
-            </svg>
+            {exporting
+              ? <div className="w-3.5 h-3.5 border border-gray-500 border-t-gray-200 rounded-full animate-spin" />
+              : <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="w-3.5 h-3.5"><path strokeLinecap="round" strokeLinejoin="round" d="M3 16.5v2.25A2.25 2.25 0 005.25 21h13.5A2.25 2.25 0 0021 18.75V16.5M16.5 12L12 16.5m0 0L7.5 12m4.5 4.5V3" /></svg>
+            }
             {exporting ? 'Exporting...' : 'Download PDF'}
           </button>
           <button
@@ -107,15 +123,29 @@ export default function ResumePreview({ onPrint }) {
         </div>
       </div>
 
-      {/* A4 canvas area */}
-      <div className="flex-1 overflow-auto bg-neutral-950 p-6 flex justify-center scrollbar-thin">
+      {/* A4 preview — always one page via scale-to-fit */}
+      <div className="flex-1 overflow-auto bg-neutral-950 p-6 flex justify-center">
         <div style={{ transform: `scale(${zoom})`, transformOrigin: 'top center', transition: 'transform 0.2s' }}>
-          {/* This div is what gets captured — render at true A4 size */}
-          <div
-            ref={previewRef}
-            style={{ width: '210mm', minHeight: '297mm', background: '#fff', boxShadow: '0 4px 40px rgba(0,0,0,0.5)' }}
+          {/* Outer fixed A4 frame */}
+          <div style={{ width: `${A4_W}px`, height: `${A4_PX}px`, overflow: 'hidden', background: '#fff', boxShadow: '0 4px 40px rgba(0,0,0,0.5)', position: 'relative', borderRadius: '2px' }}
+            onClick={e => previewRef.current?.focus()}
           >
-            <TemplateComponent data={resume} />
+            {/* Inner content scaled to fit — fontScale increases size, outer clips to A4 */}
+            <div
+              ref={previewRef}
+              contentEditable
+              suppressContentEditableWarning
+              style={{
+                width:          `${A4_W}px`,
+                transformOrigin:'top left',
+                transform:      `scale(${1 / fontScale})`,
+                fontSize:       `${fontScale * 100}%`,
+                outline:        'none',
+                cursor:         'text',
+              }}
+            >
+              <TemplateComponent data={resume} fontScale={fontScale} />
+            </div>
           </div>
         </div>
       </div>
