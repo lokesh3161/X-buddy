@@ -1,5 +1,16 @@
 const API_URL     = 'https://script.google.com/macros/s/AKfycbyj8UTgncnMmmz4ERZIN49PiHqPOS2GnBABOKgQ9WEirPh8aHSt0tdCcKkv2nUqeKt9/exec'
-const LOCAL_AGENT = 'https://mechanism-northeast-months-laser.trycloudflare.com'
+const LOCAL_API    = 'http://localhost:3001'
+const LOCAL_AGENT  = 'https://mechanism-northeast-months-laser.trycloudflare.com'
+
+async function localGet(path) {
+  try {
+    const res = await fetch(`${LOCAL_API}${path}`)
+    if (!res.ok) return null
+    return await res.json()
+  } catch {
+    return null
+  }
+}
 
 async function gasGet(params) {
   try {
@@ -15,19 +26,19 @@ export async function getOrderStatus(orderId) {
 }
 
 export async function fetchAdminOrders() {
-  return await gasGet({ action: 'listOrders' })
+  return await localGet('/admin/orders') ?? await gasGet({ action: 'listOrders' })
 }
 
 export async function fetchAdminStats() {
-  return await gasGet({ action: 'getDashboard' })
+  return await localGet('/admin/stats') ?? await gasGet({ action: 'getDashboard' })
 }
 
 export async function fetchBoothStatus() {
-  return await gasGet({ action: 'getBooths' })
+  return await localGet('/admin/booths') ?? await gasGet({ action: 'getBooths' })
 }
 
 export async function fetchHealthStatus() {
-  return await gasGet({ action: 'getHealth' })
+  return await localGet('/admin/health') ?? await gasGet({ action: 'getHealth' })
 }
 
 async function sendToLocalAgent(orderId, fileName, pdfBase64, screenshotBase64) {
