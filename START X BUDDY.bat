@@ -44,19 +44,14 @@ echo.
 
 :TUNNEL_OK
 
-:: ── STEP 2: Update api.js ────────────────────────────────────────────────
-echo [2/5] Updating api.js...
-powershell -Command "(Get-Content '%API_FILE%') -replace \"const LOCAL_AGENT = '.*'\", \"const LOCAL_AGENT = '%TUNNEL_URL%'\" | Set-Content '%API_FILE%'"
-echo      api.js updated!
+:: ── STEP 2: Push tunnel URL to GAS ─────────────────────────────────────
+echo [2/5] Pushing tunnel URL to GAS...
+powershell -Command "try { Invoke-WebRequest -Uri ('https://script.google.com/macros/s/AKfycbyj8UTgncnMmmz4ERZIN49PiHqPOS2GnBABOKgQ9WEirPh8aHSt0tdCcKkv2nUqeKt9/exec?action=setTunnelUrl&url=' + [Uri]::EscapeDataString('%TUNNEL_URL%')) -UseBasicParsing | Out-Null; Write-Host '     Tunnel URL saved to GAS!' } catch { Write-Host '     Warning: Could not save to GAS' }"
 echo.
 
 :: ── STEP 3: Push to GitHub ───────────────────────────────────────────────
-echo [3/5] Pushing to GitHub...
-cd /d "%WEB_DIR%"
-git add src/utils/api.js >nul 2>&1
-git commit -m "Auto-update Cloudflare tunnel URL" >nul 2>&1
-git push origin main >nul 2>&1
-echo      Pushed to GitHub!
+echo [3/5] Skipping GitHub push (not needed)...
+echo      Tunnel URL is stored in GAS directly.
 echo.
 
 :: ── STEP 4: Start Print Agent ────────────────────────────────────────────
