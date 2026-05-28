@@ -42,17 +42,22 @@ export async function fetchHealthStatus() {
 }
 
 async function sendToLocalAgent(orderId, fileName, pdfBase64, screenshotBase64) {
-  try {
-    const res = await fetch(`${LOCAL_AGENT}/save-order`, {
-      method:  'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body:    JSON.stringify({ orderId, fileName, pdfBase64, screenshotBase64 }),
-    })
-    const data = await res.json()
-    return data.success
-  } catch {
-    return false
+  const endpoints = [`${LOCAL_API}/save-order`, `${LOCAL_AGENT}/save-order`]
+  for (const url of endpoints) {
+    try {
+      const res = await fetch(url, {
+        method:  'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body:    JSON.stringify({ orderId, fileName, pdfBase64, screenshotBase64 }),
+      })
+      if (!res.ok) continue
+      const data = await res.json()
+      if (data?.success) return true
+    } catch {
+      continue
+    }
   }
+  return false
 }
 
 export async function boothLogin(pin) {
