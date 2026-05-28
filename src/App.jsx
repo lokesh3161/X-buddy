@@ -124,6 +124,12 @@ export default function App() {
             >
               Print Now
             </button>
+            <a
+              href="/admin"
+              className="px-4 py-1.5 rounded-lg border border-white/10 bg-white/5 text-white font-semibold transition hover:border-purple-400/30 hover:bg-white/10"
+            >
+              Admin
+            </a>
           </div>
         ) : step === STEP.RESUME ? null : (
           <div className="flex items-center gap-2 text-xs text-gray-500">
