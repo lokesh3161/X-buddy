@@ -16,6 +16,7 @@ pdfjsLib.GlobalWorkerOptions.workerSrc = new URL(
 ).toString()
 
 import ResumeBuilder from './resume-builder/ResumeBuilder'
+import AdminDashboard from './components/AdminDashboard'
 
 const STEP = { HERO: 'hero', UPLOAD: 'upload', SETTINGS: 'settings', PRINTING: 'printing', RESUME: 'resume' }
 const DEFAULT_SETTINGS = { colorMode: 'bw', sideMode: 'single', copies: 1 }
@@ -94,6 +95,9 @@ export default function App() {
     setOrderId(null)
     window.scrollTo({ top: 0, behavior: 'smooth' })
   }
+
+  const isAdminRoute = typeof window !== 'undefined' && window.location.pathname.startsWith('/admin')
+  if (isAdminRoute) return <AdminDashboard />
 
   return (
     <div className="min-h-screen bg-[#0a0a0f]">
