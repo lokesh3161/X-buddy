@@ -12,9 +12,9 @@
   <body>
     <div id="root"></div>
     <script>
-      // Ensure the SPA sees the /admin path so App renders AdminDashboard
+      // Redirect the static admin page to /admin so the SPA can handle routing.
       if (location.pathname !== '/admin') {
-        history.replaceState({}, '', '/admin')
+        location.replace('/admin')
       }
     </script>
     <script type="module" src="/src/main.jsx"></script>

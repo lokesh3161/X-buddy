@@ -125,7 +125,7 @@ export default function App() {
               Print Now
             </button>
             <a
-              href="/admin.html"
+              href="/admin"
               className="px-4 py-1.5 rounded-lg border border-white/10 bg-white/5 text-white font-semibold transition hover:border-purple-400/30 hover:bg-white/10"
             >
               Admin
