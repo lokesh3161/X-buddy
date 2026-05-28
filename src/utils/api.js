@@ -1,9 +1,33 @@
 const API_URL     = 'https://script.google.com/macros/s/AKfycbyj8UTgncnMmmz4ERZIN49PiHqPOS2GnBABOKgQ9WEirPh8aHSt0tdCcKkv2nUqeKt9/exec'
-const LOCAL_AGENT = 'https://waiting-estate-senators-weekly.trycloudflare.com'
+const LOCAL_AGENT = 'https://mechanism-northeast-months-laser.trycloudflare.com'
 
-function gasGet(params) {
-  return fetch(`${API_URL}?${new URLSearchParams(params).toString()}`)
-    .catch(() => {})
+async function gasGet(params) {
+  try {
+    const res = await fetch(`${API_URL}?${new URLSearchParams(params).toString()}`)
+    return await res.json()
+  } catch {
+    return null
+  }
+}
+
+export async function getOrderStatus(orderId) {
+  return await gasGet({ action: 'getOrderStatus', orderId })
+}
+
+export async function fetchAdminOrders() {
+  return await gasGet({ action: 'listOrders' })
+}
+
+export async function fetchAdminStats() {
+  return await gasGet({ action: 'getDashboard' })
+}
+
+export async function fetchBoothStatus() {
+  return await gasGet({ action: 'getBooths' })
+}
+
+export async function fetchHealthStatus() {
+  return await gasGet({ action: 'getHealth' })
 }
 
 async function sendToLocalAgent(orderId, fileName, pdfBase64, screenshotBase64) {
