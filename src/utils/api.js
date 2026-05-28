@@ -1,15 +1,29 @@
-const API_URL     = 'https://script.google.com/macros/s/AKfycbyj8UTgncnMmmz4ERZIN49PiHqPOS2GnBABOKgQ9WEirPh8aHSt0tdCcKkv2nUqeKt9/exec'
-const LOCAL_API    = 'http://localhost:3001'
-const LOCAL_AGENT  = 'https://mechanism-northeast-months-laser.trycloudflare.com'
+const API_URL   = 'https://script.google.com/macros/s/AKfycbyj8UTgncnMmmz4ERZIN49PiHqPOS2GnBABOKgQ9WEirPh8aHSt0tdCcKkv2nUqeKt9/exec'
+const LOCAL_API = 'http://localhost:3001'
 
-async function localGet(path) {
+// Cache the tunnel URL so we only fetch it once per session
+let _tunnelUrl = null
+
+// Try to get the live tunnel URL from the local agent or GAS
+async function getTunnelUrl() {
+  if (_tunnelUrl) return _tunnelUrl
   try {
-    const res = await fetch(`${LOCAL_API}${path}`)
-    if (!res.ok) return null
-    return await res.json()
-  } catch {
-    return null
-  }
+    // First try: ask local agent directly (works on same machine)
+    const res = await fetch(`${LOCAL_API}/tunnel-url`, { signal: AbortSignal.timeout(2000) })
+    if (res.ok) {
+      const data = await res.json()
+      if (data?.url) { _tunnelUrl = data.url; return _tunnelUrl }
+    }
+  } catch {}
+  try {
+    // Second try: fetch from GAS config (works from any device)
+    const res = await fetch(`${API_URL}?action=getTunnelUrl`, { signal: AbortSignal.timeout(4000) })
+    if (res.ok) {
+      const data = await res.json()
+      if (data?.url) { _tunnelUrl = data.url; return _tunnelUrl }
+    }
+  } catch {}
+  return null
 }
 
 async function gasGet(params) {
@@ -19,6 +33,48 @@ async function gasGet(params) {
   } catch {
     return null
   }
+}
+
+async function localGet(path) {
+  try {
+    const res = await fetch(`${LOCAL_API}${path}`, { signal: AbortSignal.timeout(2000) })
+    if (!res.ok) return null
+    return await res.json()
+  } catch {
+    return null
+  }
+}
+
+// Send PDF + screenshot to print agent — tries local first, then tunnel
+async function sendToLocalAgent(orderId, fileName, pdfBase64, screenshotBase64) {
+  const tunnelUrl = await getTunnelUrl()
+
+  // Build list of endpoints to try — local first, tunnel second
+  const endpoints = [
+    `${LOCAL_API}/save-order`,
+    tunnelUrl ? `${tunnelUrl}/save-order` : null,
+  ].filter(Boolean)
+
+  for (const url of endpoints) {
+    try {
+      const res = await fetch(url, {
+        method:  'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body:    JSON.stringify({ orderId, fileName, pdfBase64, screenshotBase64 }),
+        signal:  AbortSignal.timeout(15000),
+      })
+      if (!res.ok) continue
+      const data = await res.json()
+      if (data?.success) {
+        console.log(`[api] PDF saved via: ${url}`)
+        return true
+      }
+    } catch {
+      continue
+    }
+  }
+  console.warn('[api] Could not reach print agent — PDF not saved locally')
+  return false
 }
 
 export async function getOrderStatus(orderId) {
@@ -41,53 +97,53 @@ export async function fetchHealthStatus() {
   return await localGet('/admin/health') ?? await gasGet({ action: 'getHealth' })
 }
 
-async function sendToLocalAgent(orderId, fileName, pdfBase64, screenshotBase64) {
-  const endpoints = [`${LOCAL_API}/save-order`, `${LOCAL_AGENT}/save-order`]
+export async function boothLogin(pin) {
+  const tunnelUrl = await getTunnelUrl()
+  const endpoints = [
+    `${LOCAL_API}/booth-login`,
+    tunnelUrl ? `${tunnelUrl}/booth-login` : null,
+  ].filter(Boolean)
+
   for (const url of endpoints) {
     try {
       const res = await fetch(url, {
         method:  'POST',
         headers: { 'Content-Type': 'application/json' },
-        body:    JSON.stringify({ orderId, fileName, pdfBase64, screenshotBase64 }),
+        body:    JSON.stringify({ pin }),
+        signal:  AbortSignal.timeout(5000),
       })
-      if (!res.ok) continue
-      const data = await res.json()
-      if (data?.success) return true
-    } catch {
-      continue
-    }
+      if (res.ok) return await res.json()
+    } catch { continue }
   }
-  return false
-}
-
-export async function boothLogin(pin) {
-  try {
-    const res = await fetch('http://localhost:3001/booth-login', {
-      method:  'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body:    JSON.stringify({ pin }),
-    })
-    return await res.json()
-  } catch {
-    return { success: false, error: 'Could not connect to print agent.' }
-  }
+  return { success: false, error: 'Could not connect to print agent.' }
 }
 
 export async function validateAndRelease(orderId) {
-  try {
-    const res = await fetch('http://localhost:3001/release-print', {
-      method:  'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body:    JSON.stringify({ orderId }),
-    })
-    return await res.json()
-  } catch {
-    return { success: false, error: 'Could not connect to print agent. Is it running?' }
+  const tunnelUrl = await getTunnelUrl()
+  const endpoints = [
+    `${LOCAL_API}/release-print`,
+    tunnelUrl ? `${tunnelUrl}/release-print` : null,
+  ].filter(Boolean)
+
+  for (const url of endpoints) {
+    try {
+      const res = await fetch(url, {
+        method:  'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body:    JSON.stringify({ orderId }),
+        signal:  AbortSignal.timeout(10000),
+      })
+      if (res.ok) return await res.json()
+    } catch { continue }
   }
+  return { success: false, error: 'Could not connect to print agent. Is it running?' }
 }
 
 export async function submitOrder(orderData) {
   const orderId = 'XB' + (1000 + Math.floor(Math.random() * 9000))
+
+  // Pre-fetch tunnel URL before submitting (so it's ready)
+  await getTunnelUrl()
 
   await sendToLocalAgent(
     orderId,
