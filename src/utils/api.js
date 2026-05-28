@@ -1,4 +1,4 @@
-const API_URL   = 'https://script.google.com/macros/s/AKfycbyj8UTgncnMmmz4ERZIN49PiHqPOS2GnBABOKgQ9WEirPh8aHSt0tdCcKkv2nUqeKt9/exec'
+const API_URL   = 'https://script.google.com/macros/s/AKfycby8ykWErzVD79TrafdArCmA6i9YipHVZOjw7zFWDjpL1e44HlKORx-GAnCuGGYgcmyB/exec'
 const LOCAL_API = 'http://localhost:3001'
 
 // Cache the tunnel URL so we only fetch it once per session

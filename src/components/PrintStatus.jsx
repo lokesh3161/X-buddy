@@ -2,7 +2,7 @@ import { useEffect, useState, useRef } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 
 const API_URL =
-  'https://script.google.com/macros/s/AKfycbyj8UTgncnMmmz4ERZIN49PiHqPOS2GnBABOKgQ9WEirPh8aHSt0tdCcKkv2nUqeKt9/exec'
+  'https://script.google.com/macros/s/AKfycby8ykWErzVD79TrafdArCmA6i9YipHVZOjw7zFWDjpL1e44HlKORx-GAnCuGGYgcmyB/exec'
 
 const OFFLINE_TIMEOUT_MS = 30000
 const POLL_INTERVAL_MS   = 5000

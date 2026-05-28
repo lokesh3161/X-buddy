@@ -46,7 +46,7 @@ echo.
 
 :: ── STEP 2: Push tunnel URL to GAS ─────────────────────────────────────
 echo [2/5] Pushing tunnel URL to GAS...
-powershell -Command "try { Invoke-WebRequest -Uri ('https://script.google.com/macros/s/AKfycbyj8UTgncnMmmz4ERZIN49PiHqPOS2GnBABOKgQ9WEirPh8aHSt0tdCcKkv2nUqeKt9/exec?action=setTunnelUrl&url=' + [Uri]::EscapeDataString('%TUNNEL_URL%')) -UseBasicParsing | Out-Null; Write-Host '     Tunnel URL saved to GAS!' } catch { Write-Host '     Warning: Could not save to GAS' }"
+powershell -Command "try { Invoke-WebRequest -Uri ('https://script.google.com/macros/s/AKfycby8ykWErzVD79TrafdArCmA6i9YipHVZOjw7zFWDjpL1e44HlKORx-GAnCuGGYgcmyB/exec?action=setTunnelUrl&url=' + [Uri]::EscapeDataString('%TUNNEL_URL%')) -UseBasicParsing | Out-Null; Write-Host '     Tunnel URL saved to GAS!' } catch { Write-Host '     Warning: Could not save to GAS' }"
 echo.
 
 :: ── STEP 3: Push to GitHub ───────────────────────────────────────────────
