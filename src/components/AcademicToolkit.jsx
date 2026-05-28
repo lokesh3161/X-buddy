@@ -1,7 +1,6 @@
 import { useState, useRef, useEffect } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { jsPDF } from 'jspdf'
-import html2canvas from 'html2canvas'
 import { DOC_TYPES, generateDocument, getDocTitle } from '../utils/letterTemplates'
 
 // ── SVG Icons (no emojis) ─────────────────────────────────────────────────────
@@ -42,118 +41,38 @@ const FIELD_META = {
 }
 
 // ── PDF export via html2canvas → jsPDF (pixel-perfect, no blank pages) ────────
-async function exportToPdf(element, filename) {
-  // Wait one frame so DOM is fully painted
-  await new Promise(r => requestAnimationFrame(() => requestAnimationFrame(r)))
+// Export plain text to PDF using jsPDF (avoids html2canvas reliability issues)
+async function exportToPdf(text, filename, opts = {}) {
+  const fontSize = opts.fontSize || 11 // pt
+  const pdf = new jsPDF({ unit: 'mm', format: 'a4', orientation: 'portrait' })
+  const pageW = pdf.internal.pageSize.getWidth()
+  const pageH = pdf.internal.pageSize.getHeight()
+  const margin = 12
+  const maxW = pageW - margin * 2
 
-  const canvas = await html2canvas(element, {
-    scale:            2,          // retina quality
-    useCORS:          true,
-    backgroundColor:  '#ffffff',
-    logging:          false,
-    windowWidth:      element.scrollWidth,
-    windowHeight:     element.scrollHeight,
-  })
+  pdf.setFont('Times', 'Roman')
+  pdf.setFontSize(fontSize)
 
-  const imgData  = canvas.toDataURL('image/jpeg', 0.95)
-  const pdf      = new jsPDF({ unit: 'mm', format: 'a4', orientation: 'portrait' })
-  const pageW    = 210
-  const pageH    = 297
-  const imgW     = pageW
-  const imgH     = (canvas.height * pageW) / canvas.width
+  const lines = pdf.splitTextToSize(text, maxW)
+  const lineHeightMm = (fontSize * 0.352777778) * 1.25
+  let y = margin
 
-  let yOffset = 0
-  let remaining = imgH
-
-  while (remaining > 0) {
-    const sliceH = Math.min(remaining, pageH)
-    // For multi-page: clip each page slice
-    const sliceCanvas = document.createElement('canvas')
-    const scale       = canvas.width / pageW
-    sliceCanvas.width  = canvas.width
-    sliceCanvas.height = sliceH * scale
-    const ctx = sliceCanvas.getContext('2d')
-    ctx.drawImage(canvas, 0, yOffset * scale, canvas.width, sliceH * scale, 0, 0, canvas.width, sliceH * scale)
-    const sliceData = sliceCanvas.toDataURL('image/jpeg', 0.95)
-    if (yOffset > 0) pdf.addPage()
-    pdf.addImage(sliceData, 'JPEG', 0, 0, pageW, sliceH)
-    yOffset   += sliceH
-    remaining -= sliceH
+  for (let i = 0; i < lines.length; i++) {
+    if (y + lineHeightMm > pageH - margin) {
+      pdf.addPage()
+      y = margin
+    }
+    pdf.text(String(lines[i]), margin, y)
+    y += lineHeightMm
   }
 
   return pdf
 }
 
 // ── Document Modal ────────────────────────────────────────────────────────────
-function DocModal({ docType, onClose, onPrint }) {
-  const EMPTY = { name:'', rollNo:'', year:'', department:'', college:'', receiver:'', reason:'', days:'', extra:'' }
-  const [form,      setForm]      = useState(EMPTY)
-  const [content,   setContent]   = useState('')
-  const [generated, setGenerated] = useState(false)
-  const [mobileTab, setMobileTab] = useState('form')
-  const [fontSize,  setFontSize]  = useState(11)       // pt
-  const [exporting, setExporting] = useState(false)
-  const [toast,     setToast]     = useState('')
-  const previewRef = useRef()
-
-  function showToast(msg) {
-    setToast(msg)
-    setTimeout(() => setToast(''), 2500)
-  }
-
-  const fields = FIELDS[docType.id] || FIELDS.leave
-
-  function handleChange(field, value) {
-    const updated = { ...form, [field]: value }
-    setForm(updated)
-    if (generated) setContent(generateDocument({ type: docType.id, ...updated }))
-  }
-
-  function handleGenerate() {
-    const text = generateDocument({ type: docType.id, ...form })
-    setContent(text)
-    setGenerated(true)
-    setMobileTab('preview') // auto-switch to preview on mobile after generate
-  }
-
-  async function handleDownload() {
-    if (!previewRef.current) return
-    setExporting(true)
-    try {
-      const pdf = await exportToPdf(previewRef.current, docType.id)
-      pdf.save(`${docType.id}.pdf`)
-      showToast('PDF downloaded!')
-    } catch (e) {
-      showToast('Export failed — try again')
-    } finally {
-      setExporting(false)
-    }
-  }
-
-  async function handlePrint() {
-    if (!previewRef.current) return
-    setExporting(true)
-    try {
-      const pdf  = await exportToPdf(previewRef.current, docType.id)
-      const blob = pdf.output('blob')
-      const file = new File([blob], `${docType.id}.pdf`, { type: 'application/pdf' })
-      onPrint(file)
-      onClose()
-    } catch {
-      showToast('Export failed — try again')
-      setExporting(false)
-    }
-  }
-
-  useEffect(() => {
-    const fn = e => { if (e.key === 'Escape') onClose() }
-    window.addEventListener('keydown', fn)
-    return () => window.removeEventListener('keydown', fn)
-  }, [onClose])
-
-  // ── shared form panel content ──
-  function FormPanel() {
-    return (
+// Extracted form panel to top-level to avoid remounts/resetting cursor
+function FormPanel({ fields, form, onChange, onGenerate }) {
+  return (
     <div className="h-full overflow-y-auto p-4 space-y-3 scrollbar-thin">
       <p className="text-gray-500 text-xs font-medium uppercase tracking-wider mb-2">Document Details</p>
       {fields.map(field => {
@@ -164,17 +83,19 @@ function DocModal({ docType, onClose, onPrint }) {
             {field === 'extra' ? (
               <textarea
                 value={form[field]}
-                onChange={e => handleChange(field, e.target.value)}
+                onChange={e => onChange(field, e.target.value)}
                 placeholder={meta.placeholder}
                 rows={3}
+                style={{ color: '#fff' }}
                 className="w-full bg-neutral-900 border border-neutral-700 rounded-lg px-3 py-2 text-white text-xs placeholder:text-neutral-500 focus:outline-none focus:border-violet-500 focus:ring-1 focus:ring-violet-500/30 transition-all resize-none"
               />
             ) : (
               <input
                 type="text"
                 value={form[field]}
-                onChange={e => handleChange(field, e.target.value)}
+                onChange={e => onChange(field, e.target.value)}
                 placeholder={meta.placeholder}
+                style={{ color: '#fff' }}
                 className="w-full bg-neutral-900 border border-neutral-700 rounded-lg px-3 py-2 text-white text-xs placeholder:text-neutral-500 focus:outline-none focus:border-violet-500 focus:ring-1 focus:ring-violet-500/30 transition-all"
               />
             )}
@@ -182,18 +103,18 @@ function DocModal({ docType, onClose, onPrint }) {
         )
       })}
       <button
-        onClick={handleGenerate}
+        onClick={onGenerate}
         className="w-full py-2.5 bg-purple-600 hover:bg-purple-500 text-white font-semibold text-sm rounded-xl transition-all mt-2"
       >
         Generate Document
       </button>
     </div>
-    )
-  }
+  )
+}
 
-  // ── shared preview panel content ──
-  function PreviewPanel() {
-    return (
+// Extracted preview panel to top-level to avoid remounts/resetting cursor
+function PreviewPanel({ generated, content, fontSize, setFontSize, exporting, onDownload, onPrint, toast }) {
+  return (
     <div className="h-full flex flex-col overflow-hidden bg-[#080810]">
       {/* toolbar */}
       <div className="flex items-center justify-between px-4 py-2.5 border-b border-white/5 flex-shrink-0 gap-2 flex-wrap">
@@ -211,7 +132,7 @@ function DocModal({ docType, onClose, onPrint }) {
         {generated && (
           <div className="flex items-center gap-1.5">
             <button
-              onClick={handleDownload}
+              onClick={onDownload}
               disabled={exporting}
               className="flex items-center gap-1 px-2.5 py-1.5 rounded-lg bg-white/5 hover:bg-white/10 disabled:opacity-50 text-gray-400 text-xs font-medium transition-all"
             >
@@ -222,7 +143,7 @@ function DocModal({ docType, onClose, onPrint }) {
               <span className="hidden sm:inline">{exporting ? 'Generating...' : 'Download'}</span>
             </button>
             <button
-              onClick={handlePrint}
+              onClick={onPrint}
               disabled={exporting}
               className="flex items-center gap-1 px-2.5 py-1.5 rounded-lg bg-purple-600 hover:bg-purple-500 disabled:opacity-50 text-white text-xs font-semibold transition-all"
             >
@@ -249,7 +170,6 @@ function DocModal({ docType, onClose, onPrint }) {
       <div className="flex-1 overflow-y-auto p-4 sm:p-8 flex justify-center">
         {generated ? (
           <div
-            ref={previewRef}
             contentEditable
             suppressContentEditableWarning
             className="w-full max-w-[210mm] bg-white text-gray-900 rounded-sm shadow-2xl px-6 py-10 sm:p-[22mm] whitespace-pre-wrap outline-none focus:ring-2 focus:ring-purple-500/30"
@@ -273,8 +193,76 @@ function DocModal({ docType, onClose, onPrint }) {
         )}
       </div>
     </div>
-    )
+  )
+}
+
+function DocModal({ docType, onClose, onPrint }) {
+  const EMPTY = { name:'', rollNo:'', year:'', department:'', college:'', receiver:'', reason:'', days:'', extra:'' }
+  const [form,      setForm]      = useState(EMPTY)
+  const [content,   setContent]   = useState('')
+  const [generated, setGenerated] = useState(false)
+  const [mobileTab, setMobileTab] = useState('form')
+  const [fontSize,  setFontSize]  = useState(11)       // pt
+  const [exporting, setExporting] = useState(false)
+  const [toast,     setToast]     = useState('')
+  
+
+  function showToast(msg) {
+    setToast(msg)
+    setTimeout(() => setToast(''), 2500)
   }
+
+  const fields = FIELDS[docType.id] || FIELDS.leave
+
+  function handleChange(field, value) {
+    const updated = { ...form, [field]: value }
+    setForm(updated)
+    if (generated) setContent(generateDocument({ type: docType.id, ...updated }))
+  }
+
+  function handleGenerate() {
+    const text = generateDocument({ type: docType.id, ...form })
+    setContent(text)
+    setGenerated(true)
+    setMobileTab('preview') // auto-switch to preview on mobile after generate
+  }
+
+  async function handleDownload() {
+    if (!generated || !content) return
+    setExporting(true)
+    try {
+      const pdf = await exportToPdf(content, docType.id, { fontSize })
+      pdf.save(`${docType.id}.pdf`)
+      showToast('PDF downloaded!')
+    } catch (e) {
+      showToast('Export failed — try again')
+    } finally {
+      setExporting(false)
+    }
+  }
+
+  async function handlePrint() {
+    if (!generated || !content) return
+    setExporting(true)
+    try {
+      const pdf  = await exportToPdf(content, docType.id, { fontSize })
+      const blob = pdf.output('blob')
+      const file = new File([blob], `${docType.id}.pdf`, { type: 'application/pdf' })
+      onPrint(file)
+      onClose()
+    } catch {
+      showToast('Export failed — try again')
+      setExporting(false)
+    }
+  }
+
+  useEffect(() => {
+    const fn = e => { if (e.key === 'Escape') onClose() }
+    window.addEventListener('keydown', fn)
+    return () => window.removeEventListener('keydown', fn)
+  }, [onClose])
+
+  
 
   return (
     <motion.div
@@ -334,13 +322,13 @@ function DocModal({ docType, onClose, onPrint }) {
           <div className={`${
             mobileTab === 'form' ? 'flex' : 'hidden'
           } sm:flex w-full sm:w-80 flex-shrink-0 sm:border-r border-white/[0.06] flex-col`}>
-            <FormPanel />
+            <FormPanel fields={fields} form={form} onChange={handleChange} onGenerate={handleGenerate} />
           </div>
 
           <div className={`${
             mobileTab === 'preview' ? 'flex' : 'hidden'
           } sm:flex flex-1 flex-col overflow-hidden`}>
-            <PreviewPanel />
+            <PreviewPanel generated={generated} content={content} fontSize={fontSize} setFontSize={setFontSize} exporting={exporting} onDownload={handleDownload} onPrint={handlePrint} toast={toast} />
           </div>
         </div>
       </motion.div>
