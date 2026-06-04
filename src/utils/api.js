@@ -1,14 +1,12 @@
-const API_URL   = 'https://script.google.com/macros/s/AKfycby8ykWErzVD79TrafdArCmA6i9YipHVZOjw7zFWDjpL1e44HlKORx-GAnCuGGYgcmyB/exec'
-const LOCAL_API = 'http://localhost:3001'
+const API_URL    = 'https://script.google.com/macros/s/AKfycbwDcsGng774iNQ9zNdBt-bdkIFGSg7_lvr5MRvIzzqE6s9bGex7ej1U1WChrY-KgOM/exec'
+const LOCAL_API  = 'http://localhost:3001'
+const GITHUB_RAW = 'https://raw.githubusercontent.com/lokesh3161/X-buddy/main/public/tunnel-url.txt'
 
-// Cache the tunnel URL so we only fetch it once per session
 let _tunnelUrl = null
 
-// Try to get the live tunnel URL from the local agent or GAS
 async function getTunnelUrl() {
   if (_tunnelUrl) return _tunnelUrl
   try {
-    // First try: ask local agent directly (works on same machine)
     const res = await fetch(`${LOCAL_API}/tunnel-url`, { signal: AbortSignal.timeout(2000) })
     if (res.ok) {
       const data = await res.json()
@@ -16,7 +14,13 @@ async function getTunnelUrl() {
     }
   } catch {}
   try {
-    // Second try: fetch from GAS config (works from any device)
+    const res = await fetch(`${GITHUB_RAW}?t=${Date.now()}`, { signal: AbortSignal.timeout(5000) })
+    if (res.ok) {
+      const url = (await res.text()).trim()
+      if (url.startsWith('https://')) { _tunnelUrl = url; return _tunnelUrl }
+    }
+  } catch {}
+  try {
     const res = await fetch(`${API_URL}?action=getTunnelUrl`, { signal: AbortSignal.timeout(4000) })
     if (res.ok) {
       const data = await res.json()
