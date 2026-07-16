@@ -1,38 +1,56 @@
-const API_URL    = 'https://script.google.com/macros/s/AKfycbwDcsGng774iNQ9zNdBt-bdkIFGSg7_lvr5MRvIzzqE6s9bGex7ej1U1WChrY-KgOM/exec'
+import { auth, getShopConfig } from './firebase'
+
 const LOCAL_API  = 'http://localhost:3001'
-const GITHUB_RAW = 'https://raw.githubusercontent.com/lokesh3161/X-buddy/main/public/tunnel-url.txt'
 
 let _tunnelUrl = null
+let _tunnelFetchedAt = 0
+let _shopConfig = null
+const TUNNEL_TTL = 30000
+
+async function getConfig() {
+  if (_shopConfig) return _shopConfig
+  const user = auth.currentUser
+  if (user) _shopConfig = await getShopConfig(user.uid)
+  return _shopConfig
+}
+
+async function getGasUrl() {
+  const config = await getConfig()
+  return config?.gasUrl || 'https://script.google.com/macros/s/AKfycbzEGtssDA6cpNQ2Wg-TexwMFq4fhVeguNzp3EiAUd8W5aTZ4bgYscvGg2_7Ez2z2utr/exec'
+}
 
 async function getTunnelUrl() {
-  if (_tunnelUrl) return _tunnelUrl
+  const now = Date.now()
+  if (_tunnelUrl && now - _tunnelFetchedAt < TUNNEL_TTL) return _tunnelUrl
+
+  // 1. Try local agent
   try {
     const res = await fetch(`${LOCAL_API}/tunnel-url`, { signal: AbortSignal.timeout(2000) })
     if (res.ok) {
       const data = await res.json()
-      if (data?.url) { _tunnelUrl = data.url; return _tunnelUrl }
+      if (data?.url) { _tunnelUrl = data.url; _tunnelFetchedAt = now; return _tunnelUrl }
     }
   } catch {}
+
+  // 2. Try GAS (tunnel.js publishes URL here on every agent start)
   try {
-    const res = await fetch(`${GITHUB_RAW}?t=${Date.now()}`, { signal: AbortSignal.timeout(5000) })
-    if (res.ok) {
-      const url = (await res.text()).trim()
-      if (url.startsWith('https://')) { _tunnelUrl = url; return _tunnelUrl }
-    }
-  } catch {}
-  try {
-    const res = await fetch(`${API_URL}?action=getTunnelUrl`, { signal: AbortSignal.timeout(4000) })
+    const gasUrl = await getGasUrl()
+    const res = await fetch(`${gasUrl}?action=getTunnelUrl`, { signal: AbortSignal.timeout(5000) })
     if (res.ok) {
       const data = await res.json()
-      if (data?.url) { _tunnelUrl = data.url; return _tunnelUrl }
+      if (data?.url?.startsWith('https://')) {
+        _tunnelUrl = data.url; _tunnelFetchedAt = now; return _tunnelUrl
+      }
     }
   } catch {}
+
   return null
 }
 
 async function gasGet(params) {
   try {
-    const res = await fetch(`${API_URL}?${new URLSearchParams(params).toString()}`)
+    const gasUrl = await getGasUrl()
+    const res = await fetch(`${gasUrl}?${new URLSearchParams(params).toString()}`)
     return await res.json()
   } catch {
     return null
@@ -49,34 +67,76 @@ async function localGet(path) {
   }
 }
 
-// Send PDF + screenshot to print agent — tries local first, then tunnel
+// Send PDF in chunks via GAS proxy → tunnel (safe for mobile)
+async function sendViaGasProxy(orderId, fileName, pdfBase64, screenshotBase64) {
+  const gasUrl = await getGasUrl()
+  const CHUNK_SIZE = 150000 // 150KB per chunk — safe for GAS URL length limit
+  const totalChunks = Math.ceil(pdfBase64.length / CHUNK_SIZE)
+
+  for (let i = 0; i < totalChunks; i++) {
+    const chunk = pdfBase64.slice(i * CHUNK_SIZE, (i + 1) * CHUNK_SIZE)
+    const isLast = i === totalChunks - 1
+    const params = new URLSearchParams({
+      action:      'proxyChunk',
+      orderId,
+      chunk,
+      chunkIndex:  String(i),
+      totalChunks: String(totalChunks),
+    })
+    if (isLast && screenshotBase64) params.set('screenshotBase64', screenshotBase64)
+
+    const res = await fetch(`${gasUrl}?${params.toString()}`, {
+      signal: AbortSignal.timeout(60000),
+    }).then(r => r.json())
+
+    if (!res.success) throw new Error(res.error || `Chunk ${i} failed`)
+  }
+  return true
+}
+
+// Send PDF + screenshot to print agent — tries local first, then GAS proxy for mobile
 async function sendToLocalAgent(orderId, fileName, pdfBase64, screenshotBase64) {
+  // 1. Try local agent directly (works when on same network / same device)
+  try {
+    const res = await fetch(`${LOCAL_API}/save-order`, {
+      method:  'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body:    JSON.stringify({ orderId, fileName, pdfBase64, screenshotBase64 }),
+      signal:  AbortSignal.timeout(15000),
+    })
+    if (res.ok) {
+      const data = await res.json()
+      if (data?.success) { console.log('[api] PDF saved via local'); return true }
+    }
+  } catch {}
+
+  // 2. Try tunnel directly (fast if connection is good)
   const tunnelUrl = await getTunnelUrl()
-
-  // Build list of endpoints to try — local first, tunnel second
-  const endpoints = [
-    `${LOCAL_API}/save-order`,
-    tunnelUrl ? `${tunnelUrl}/save-order` : null,
-  ].filter(Boolean)
-
-  for (const url of endpoints) {
+  if (tunnelUrl) {
     try {
-      const res = await fetch(url, {
+      const res = await fetch(`${tunnelUrl}/save-order`, {
         method:  'POST',
         headers: { 'Content-Type': 'application/json' },
         body:    JSON.stringify({ orderId, fileName, pdfBase64, screenshotBase64 }),
-        signal:  AbortSignal.timeout(15000),
+        signal:  AbortSignal.timeout(20000),
       })
-      if (!res.ok) continue
-      const data = await res.json()
-      if (data?.success) {
-        console.log(`[api] PDF saved via: ${url}`)
-        return true
+      if (res.ok) {
+        const data = await res.json()
+        if (data?.success) { console.log('[api] PDF saved via tunnel direct'); return true }
       }
-    } catch {
-      continue
-    }
+    } catch {}
   }
+
+  // 3. Fallback: send in chunks via GAS proxy (works on mobile over slow connections)
+  try {
+    console.log('[api] Trying chunked upload via GAS proxy...')
+    await sendViaGasProxy(orderId, fileName, pdfBase64, screenshotBase64)
+    console.log('[api] PDF saved via GAS proxy chunks')
+    return true
+  } catch (err) {
+    console.warn('[api] GAS proxy also failed:', err.message)
+  }
+
   console.warn('[api] Could not reach print agent — PDF not saved locally')
   return false
 }
