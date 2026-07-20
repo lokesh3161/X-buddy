@@ -1,12 +1,12 @@
 @echo off
 title X Buddy — Master Startup
 color 0D
-set NODE=C:\Program Files\nodejs\node.exe
 set NPM=C:\Program Files\nodejs\npm.cmd
 set AGENT_DIR=C:\Users\Lokesh Thanala\OneDrive\Desktop\xbuddy-print-agent
 set WEB_DIR=C:\Users\Lokesh Thanala\OneDrive\Desktop\xerox buddy
 set CLOUDFLARED=%AGENT_DIR%\cloudflared.exe
 set TUNNEL_LOG=%AGENT_DIR%\tunnel.log
+set TUNNEL_ERR=%AGENT_DIR%\tunnel_err.log
 set GIT=C:\Program Files\Git\bin\git.exe
 set GAS_URL=https://script.google.com/macros/s/AKfycbwDcsGng774iNQ9zNdBt-bdkIFGSg7_lvr5MRvIzzqE6s9bGex7ej1U1WChrY-KgOM/exec
 
@@ -18,20 +18,20 @@ echo.
 :: ── STEP 1: Start Cloudflare Tunnel ──────────────────────────────────────
 echo [1/5] Starting Cloudflare Tunnel...
 if exist "%TUNNEL_LOG%" del "%TUNNEL_LOG%"
+if exist "%TUNNEL_ERR%" del "%TUNNEL_ERR%"
 
-:: Start cloudflared in a cmd window that redirects output to log file
-start "" /min cmd /c ""%CLOUDFLARED%" tunnel --url http://localhost:3001 > "%TUNNEL_LOG%" 2>&1"
+powershell -NoProfile -Command "Start-Process -FilePath '%CLOUDFLARED%' -ArgumentList 'tunnel','--url','http://localhost:3001' -RedirectStandardOutput '%TUNNEL_LOG%' -RedirectStandardError '%TUNNEL_ERR%' -WindowStyle Hidden"
 
-echo      Waiting for tunnel URL (up to 40 seconds)...
+echo      Waiting for tunnel URL...
 set TUNNEL_URL=
 set /a COUNT=0
 
 :WAIT_LOOP
 timeout /t 2 /nobreak >nul
 set /a COUNT+=1
-if %COUNT% GTR 20 goto TUNNEL_FAILED
+if %COUNT% GTR 25 goto TUNNEL_FAILED
 
-for /f "delims=" %%u in ('powershell -NoProfile -Command "try { $c = [System.IO.File]::ReadAllText('%TUNNEL_LOG%'); if ($c -match 'https://[a-z0-9-]+\.trycloudflare\.com') { $matches[0] } } catch {}"') do set TUNNEL_URL=%%u
+for /f "delims=" %%u in ('powershell -NoProfile -Command "$f1='%TUNNEL_LOG%'; $f2='%TUNNEL_ERR%'; $c=''; if(Test-Path $f1){$c+=Get-Content $f1 -Raw -ErrorAction SilentlyContinue}; if(Test-Path $f2){$c+=Get-Content $f2 -Raw -ErrorAction SilentlyContinue}; if($c -match 'https://[a-z0-9-]+\.trycloudflare\.com'){$matches[0]}"') do set TUNNEL_URL=%%u
 
 if "%TUNNEL_URL%"=="" goto WAIT_LOOP
 echo      Tunnel URL: %TUNNEL_URL%
@@ -55,9 +55,9 @@ cd /d "%WEB_DIR%"
 echo      Tunnel URL pushed to GitHub!
 echo.
 
-:: ── STEP 3: Push tunnel URL to GAS (backup) ──────────────────────────────
+:: ── STEP 3: Save tunnel URL to GAS (backup) ──────────────────────────────
 echo [3/5] Saving tunnel URL to GAS...
-powershell -NoProfile -Command "try { Invoke-WebRequest -Uri ('%GAS_URL%?action=setTunnelUrl&url=' + [Uri]::EscapeDataString('%TUNNEL_URL%')) -UseBasicParsing | Out-Null; Write-Host '     Saved to GAS!' } catch { Write-Host '     Warning: Could not save to GAS' }"
+powershell -NoProfile -Command "try { Invoke-WebRequest -Uri ('%GAS_URL%?action=setTunnelUrl&url='+[Uri]::EscapeDataString('%TUNNEL_URL%')) -UseBasicParsing | Out-Null; Write-Host '     Saved to GAS!' } catch { Write-Host '     Warning: Could not save to GAS' }"
 echo.
 
 :: ── STEP 4: Start Print Agent ─────────────────────────────────────────────
