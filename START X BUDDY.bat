@@ -31,7 +31,7 @@ timeout /t 2 /nobreak >nul
 set /a COUNT+=1
 if %COUNT% GTR 20 goto TUNNEL_FAILED
 
-for /f "delims=" %%u in ('powershell -NoProfile -Command "try { $c = [System.IO.File]::ReadAllText('%TUNNEL_LOG%'); if ($c -match 'https://[a-z0-9\-]+\.trycloudflare\.com') { $matches[0] } } catch {}"') do set TUNNEL_URL=%%u
+for /f "delims=" %%u in ('powershell -NoProfile -Command "try { $c = [System.IO.File]::ReadAllText('%TUNNEL_LOG%'); if ($c -match 'https://[a-z0-9-]+\.trycloudflare\.com') { $matches[0] } } catch {}"') do set TUNNEL_URL=%%u
 
 if "%TUNNEL_URL%"=="" goto WAIT_LOOP
 echo      Tunnel URL: %TUNNEL_URL%
