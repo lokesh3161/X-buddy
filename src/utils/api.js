@@ -1,22 +1,13 @@
-import { auth, getShopConfig } from './firebase'
-
+const API_URL    = 'https://script.google.com/macros/s/AKfycbwDcsGng774iNQ9zNdBt-bdkIFGSg7_lvr5MRvIzzqE6s9bGex7ej1U1WChrY-KgOM/exec'
 const LOCAL_API  = 'http://localhost:3001'
+const GITHUB_RAW = 'https://raw.githubusercontent.com/lokesh3161/X-buddy/main/public/tunnel-url.txt'
 
 let _tunnelUrl = null
 let _tunnelFetchedAt = 0
-let _shopConfig = null
 const TUNNEL_TTL = 30000
 
-async function getConfig() {
-  if (_shopConfig) return _shopConfig
-  const user = auth.currentUser
-  if (user) _shopConfig = await getShopConfig(user.uid)
-  return _shopConfig
-}
-
 async function getGasUrl() {
-  const config = await getConfig()
-  return config?.gasUrl || 'https://script.google.com/macros/s/AKfycbzEGtssDA6cpNQ2Wg-TexwMFq4fhVeguNzp3EiAUd8W5aTZ4bgYscvGg2_7Ez2z2utr/exec'
+  return API_URL
 }
 
 async function getTunnelUrl() {
@@ -32,15 +23,21 @@ async function getTunnelUrl() {
     }
   } catch {}
 
-  // 2. Try GAS (tunnel.js publishes URL here on every agent start)
+  // 2. Try GitHub raw (pushed on every server start)
   try {
-    const gasUrl = await getGasUrl()
-    const res = await fetch(`${gasUrl}?action=getTunnelUrl`, { signal: AbortSignal.timeout(5000) })
+    const res = await fetch(`${GITHUB_RAW}?t=${now}`, { signal: AbortSignal.timeout(5000) })
+    if (res.ok) {
+      const url = (await res.text()).trim()
+      if (url.startsWith('https://')) { _tunnelUrl = url; _tunnelFetchedAt = now; return _tunnelUrl }
+    }
+  } catch {}
+
+  // 3. Try GAS
+  try {
+    const res = await fetch(`${API_URL}?action=getTunnelUrl`, { signal: AbortSignal.timeout(4000) })
     if (res.ok) {
       const data = await res.json()
-      if (data?.url?.startsWith('https://')) {
-        _tunnelUrl = data.url; _tunnelFetchedAt = now; return _tunnelUrl
-      }
+      if (data?.url?.startsWith('https://')) { _tunnelUrl = data.url; _tunnelFetchedAt = now; return _tunnelUrl }
     }
   } catch {}
 
