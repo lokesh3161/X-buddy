@@ -164,15 +164,21 @@ export async function validateAndRelease(orderId) {
 }
 
 // submitOrder — sequential, throws { step, reason } on any failure.
-// orderId comes from GAS response, not client-side.
+// A collision-resistant ID is generated client-side and sent to GAS;
+// GAS echoes it back (or generates its own) — we always use the server-confirmed value.
 export async function submitOrder(orderData, { onStep } = {}) {
-  // ── Step 1: Save order record to Google Apps Script (gets us the orderId) ──
+  // Client-side ID: 'XB' + base-36 timestamp + 4 random chars = ~10^9 keyspace, not guessable
+  const clientOrderId = 'XB' + Date.now().toString(36).toUpperCase() +
+    Math.random().toString(36).slice(2, 6).toUpperCase()
+
+  // ── Step 1: Save order record to Google Apps Script ───────────────────────────
   onStep?.('save_order')
   let gasResult
   try {
     const res = await fetch(
       `${API_URL}?${new URLSearchParams({
         action:        'saveOrder',
+        orderId:       clientOrderId,
         name:          orderData.name,
         fileName:      orderData.fileName,
         totalPages:    String(orderData.totalPages),
@@ -195,7 +201,7 @@ export async function submitOrder(orderData, { onStep } = {}) {
     throw { step: 'save_order', reason: gasResult?.error || 'Unable to Save Order' }
   }
 
-  const orderId = gasResult.orderId
+  const orderId = gasResult.orderId || clientOrderId
   if (!orderId) throw { step: 'save_order', reason: 'Server did not return an Order ID' }
 
   // ── Step 2: Send PDF to local print agent ─────────────────────────────────
