@@ -1,4 +1,4 @@
-const API_URL    = 'https://script.google.com/macros/s/AKfycbwDcsGng774iNQ9zNdBt-bdkIFGSg7_lvr5MRvIzzqE6s9bGex7ej1U1WChrY-KgOM/exec'
+const API_URL    = 'https://script.google.com/macros/s/AKfycbzHpCucqACQVCtJKnxUo91RstAaRQcklKuMW760cL5rq4EVuTeUqWwui2IJHHxyxyVs/exec'
 const LOCAL_API  = 'http://localhost:3001'
 const GITHUB_RAW = 'https://raw.githubusercontent.com/lokesh3161/X-buddy/main/public/tunnel-url.txt'
 

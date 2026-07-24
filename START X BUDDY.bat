@@ -8,7 +8,7 @@ set CLOUDFLARED=%AGENT_DIR%\cloudflared.exe
 set TUNNEL_LOG=%AGENT_DIR%\tunnel.log
 set TUNNEL_ERR=%AGENT_DIR%\tunnel_err.log
 set GIT=C:\Program Files\Git\bin\git.exe
-set GAS_URL=https://script.google.com/macros/s/AKfycbwDcsGng774iNQ9zNdBt-bdkIFGSg7_lvr5MRvIzzqE6s9bGex7ej1U1WChrY-KgOM/exec
+set GAS_URL=https://script.google.com/macros/s/AKfycbzHpCucqACQVCtJKnxUo91RstAaRQcklKuMW760cL5rq4EVuTeUqWwui2IJHHxyxyVs/exec
 
 echo.
 echo  X Buddy Master Startup
