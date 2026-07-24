@@ -10,7 +10,6 @@ async function getTunnelUrl() {
   const now = Date.now()
   if (_tunnelUrl && (now - _tunnelFetchedAt) < TUNNEL_TTL) return _tunnelUrl
 
-  // Local agent — fast timeout
   try {
     const res = await fetch(`${LOCAL_API}/tunnel-url`, { signal: AbortSignal.timeout(500) })
     if (res.ok) {
@@ -19,7 +18,6 @@ async function getTunnelUrl() {
     }
   } catch {}
 
-  // GitHub raw
   try {
     const res = await fetch(`${GITHUB_RAW}?t=${now}`, { signal: AbortSignal.timeout(6000) })
     if (res.ok) {
@@ -28,7 +26,6 @@ async function getTunnelUrl() {
     }
   } catch {}
 
-  // GAS fallback
   try {
     const res = await fetch(`${API_URL}?action=getTunnelUrl`, { signal: AbortSignal.timeout(5000) })
     if (res.ok) {
@@ -56,11 +53,9 @@ async function localGet(path) {
   } catch { return null }
 }
 
-// Upload PDF to GAS Drive in 200KB chunks
 async function uploadPdfViaGas(orderId, fileName, pdfBase64) {
   const CHUNK_SIZE = 200 * 1024
   const total = Math.ceil(pdfBase64.length / CHUNK_SIZE)
-
   for (let i = 0; i < total; i++) {
     const chunk = pdfBase64.slice(i * CHUNK_SIZE, (i + 1) * CHUNK_SIZE)
     const params = new URLSearchParams({
@@ -68,54 +63,35 @@ async function uploadPdfViaGas(orderId, fileName, pdfBase64) {
       index: String(i), total: String(total), chunk,
     })
     const res = await fetch(`${API_URL}?${params.toString()}`, { signal: AbortSignal.timeout(30000) })
-    if (!res.ok) throw new Error(`Chunk ${i} failed: HTTP ${res.status}`)
+    if (!res.ok) throw new Error(`Chunk ${i} failed`)
     const data = await res.json()
     if (!data?.success) throw new Error(`Chunk ${i} rejected`)
   }
-
-  const assembleParams = new URLSearchParams({
-    action: 'assemblePdf', fileId: orderId,
-    fileName, mimeType: 'application/pdf',
-  })
-  const res = await fetch(`${API_URL}?${assembleParams.toString()}`, { signal: AbortSignal.timeout(60000) })
-  if (!res.ok) throw new Error(`Assemble failed: HTTP ${res.status}`)
+  const res = await fetch(`${API_URL}?${new URLSearchParams({
+    action: 'assemblePdf', fileId: orderId, fileName, mimeType: 'application/pdf',
+  }).toString()}`, { signal: AbortSignal.timeout(60000) })
   const data = await res.json()
-  if (!data?.success || !data?.fileUrl) throw new Error('Assembly failed — no Drive URL')
+  if (!data?.success || !data?.fileUrl) throw new Error('Assembly failed')
   return data.fileUrl
 }
 
-// Send only metadata + driveUrl to agent (no PDF in body — avoids Cloudflare block)
-async function notifyAgent(orderId, driveUrl, printSettings, screenshotBase64) {
-  const body = JSON.stringify({ orderId, driveUrl, screenshotBase64: screenshotBase64 || '', ...printSettings })
-
-  // Try local first
-  try {
-    const res = await fetch(`${LOCAL_API}/save-order-meta`, {
-      method: 'POST', headers: { 'Content-Type': 'application/json' },
-      body, signal: AbortSignal.timeout(5000),
-    })
-    if (res.ok) {
-      const data = await res.json()
-      if (data?.success) return true
-    }
-  } catch {}
-
-  // Try tunnel (metadata is tiny — always works through Cloudflare)
-  const tunnelUrl = await getTunnelUrl()
-  if (tunnelUrl) {
-    try {
-      const res = await fetch(`${tunnelUrl}/save-order-meta`, {
-        method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body, signal: AbortSignal.timeout(10000),
-      })
-      if (res.ok) {
-        const data = await res.json()
-        if (data?.success) return true
-      }
-    } catch {}
-  }
-
-  return false
+// Send full order payload to agent endpoint
+async function postToAgent(baseUrl, orderId, orderData, printSettings) {
+  const res = await fetch(`${baseUrl}/save-order`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      orderId,
+      fileName:         orderData.fileName,
+      pdfBase64:        orderData.pdfBase64 || '',
+      screenshotBase64: orderData.screenshotBase64 || '',
+      ...printSettings,
+    }),
+    signal: AbortSignal.timeout(20000),
+  })
+  if (!res.ok) return false
+  const data = await res.json()
+  return !!data?.success
 }
 
 export async function getOrderStatus(orderId) {
@@ -140,13 +116,10 @@ export async function fetchHealthStatus() {
 
 export async function boothLogin(pin) {
   const tunnelUrl = await getTunnelUrl()
-  const endpoints = [
-    `${LOCAL_API}/booth-login`,
-    tunnelUrl ? `${tunnelUrl}/booth-login` : null,
-  ].filter(Boolean)
-  for (const url of endpoints) {
+  const endpoints = [LOCAL_API, tunnelUrl].filter(Boolean)
+  for (const base of endpoints) {
     try {
-      const res = await fetch(url, {
+      const res = await fetch(`${base}/booth-login`, {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ pin }), signal: AbortSignal.timeout(5000),
       })
@@ -158,13 +131,10 @@ export async function boothLogin(pin) {
 
 export async function validateAndRelease(orderId) {
   const tunnelUrl = await getTunnelUrl()
-  const endpoints = [
-    `${LOCAL_API}/release-print`,
-    tunnelUrl ? `${tunnelUrl}/release-print` : null,
-  ].filter(Boolean)
-  for (const url of endpoints) {
+  const endpoints = [LOCAL_API, tunnelUrl].filter(Boolean)
+  for (const base of endpoints) {
     try {
-      const res = await fetch(url, {
+      const res = await fetch(`${base}/release-print`, {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ orderId }), signal: AbortSignal.timeout(10000),
       })
@@ -190,58 +160,57 @@ export async function submitOrder(orderData, { onStep } = {}) {
   onStep?.('save_order')
   let gasResult
   try {
-    const res = await fetch(
-      `${API_URL}?${new URLSearchParams({
-        action: 'saveOrder', orderId: clientOrderId,
-        name: orderData.name, fileName: orderData.fileName,
-        totalPages: String(orderData.totalPages), copies: String(orderData.copies),
-        printType: orderData.printType || 'B&W', printSide: orderData.printSide || 'Single',
-        pageSize: orderData.pageSize || 'A4', orientation: orderData.orientation || 'portrait',
-        amount: String(orderData.amount), transactionId: orderData.transactionId,
-      }).toString()}`,
-      { signal: AbortSignal.timeout(20000) }
-    )
+    const res = await fetch(`${API_URL}?${new URLSearchParams({
+      action: 'saveOrder', orderId: clientOrderId,
+      name: orderData.name, fileName: orderData.fileName,
+      totalPages: String(orderData.totalPages), copies: String(orderData.copies),
+      printType: orderData.printType || 'B&W', printSide: orderData.printSide || 'Single',
+      pageSize: orderData.pageSize || 'A4', orientation: orderData.orientation || 'portrait',
+      amount: String(orderData.amount), transactionId: orderData.transactionId,
+    }).toString()}`, { signal: AbortSignal.timeout(20000) })
     if (!res.ok) throw { step: 'save_order', reason: `HTTP ${res.status}` }
     gasResult = await res.json()
   } catch (err) {
     if (err?.step) throw err
     throw { step: 'save_order', reason: err.name === 'TimeoutError' ? 'Request Timed Out' : (err.message || 'Network Error') }
   }
-
   if (!gasResult?.success) throw { step: 'save_order', reason: gasResult?.error || 'Unable to Save Order' }
   const orderId = gasResult.orderId || clientOrderId
 
-  // ── Step 2: Upload PDF to Drive + notify agent ────────────────────────────
+  // ── Step 2: Deliver PDF to agent ──────────────────────────────────────────
   onStep?.('print_agent')
 
-  // If on kiosk (localhost reachable), send PDF directly — fast and reliable
+  // Try local (kiosk same machine)
   try {
-    const res = await fetch(`${LOCAL_API}/save-order`, {
-      method: 'POST', headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        orderId, fileName: orderData.fileName,
-        pdfBase64: orderData.pdfBase64 || '',
-        screenshotBase64: orderData.screenshotBase64 || '',
-        ...printSettings,
-      }),
-      signal: AbortSignal.timeout(15000),
-    })
-    if (res.ok) {
-      const data = await res.json()
-      if (data?.success) return { success: true, orderId, message: null }
-    }
+    if (await postToAgent(LOCAL_API, orderId, orderData, printSettings))
+      return { success: true, orderId, message: null }
   } catch {}
 
-  // Mobile path: upload PDF to Drive, then send tiny metadata to agent via tunnel
+  // Try tunnel with full PDF (works for PDFs under ~4MB through Cloudflare)
+  const tunnelUrl = await getTunnelUrl()
+  if (tunnelUrl) {
+    try {
+      if (await postToAgent(tunnelUrl, orderId, orderData, printSettings))
+        return { success: true, orderId, message: null }
+    } catch {}
+  }
+
+  // Fallback: upload PDF to Drive, send metadata to agent
   try {
     const driveUrl = await uploadPdfViaGas(orderId, orderData.fileName, orderData.pdfBase64 || '')
-    await notifyAgent(orderId, driveUrl, printSettings, orderData.screenshotBase64)
+    // Notify agent via local or tunnel with just the driveUrl (tiny payload)
+    const metaBody = JSON.stringify({ orderId, driveUrl, screenshotBase64: orderData.screenshotBase64 || '', ...printSettings })
+    for (const base of [LOCAL_API, tunnelUrl].filter(Boolean)) {
+      try {
+        const r = await fetch(`${base}/save-order-meta`, {
+          method: 'POST', headers: { 'Content-Type': 'application/json' },
+          body: metaBody, signal: AbortSignal.timeout(8000),
+        })
+        if (r.ok) { const d = await r.json(); if (d?.success) break }
+      } catch {}
+    }
     return { success: true, orderId, message: null }
   } catch {
-    // Drive upload failed — order is saved in sheet, shopkeeper can handle manually
-    return {
-      success: true, orderId,
-      message: 'Order saved! Show your Order ID to the shopkeeper.',
-    }
+    return { success: true, orderId, message: 'Order saved! Show your Order ID to the shopkeeper.' }
   }
 }
