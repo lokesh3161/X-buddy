@@ -162,27 +162,59 @@ export async function validateAndRelease(orderId) {
 }
 
 export async function submitOrder(orderData) {
-  const orderId = 'XB' + (1000 + Math.floor(Math.random() * 9000))
+  // ── Step 1: Save order to Google Apps Script ──────────────────────────────
+  let gasResult = null
+  try {
+    const res = await fetch(
+      `${API_URL}?${new URLSearchParams({
+        action:        'saveOrder',
+        name:          orderData.name,
+        fileName:      orderData.fileName,
+        totalPages:    String(orderData.totalPages),
+        copies:        String(orderData.copies),
+        printType:     orderData.printType,
+        printSide:     orderData.printSide || '',
+        amount:        String(orderData.amount),
+        transactionId: orderData.transactionId,
+      }).toString()}`,
+      { signal: AbortSignal.timeout(20000) }
+    )
+    if (!res.ok) throw new Error(`GAS HTTP ${res.status}`)
+    gasResult = await res.json()
+  } catch (err) {
+    const msg = err.name === 'TimeoutError'
+      ? 'Google Apps Script timed out. Please check your connection.'
+      : `Unable to save order: ${err.message}`
+    return { success: false, error: msg }
+  }
 
-  await sendToLocalAgent(
+  if (!gasResult?.success) {
+    return {
+      success: false,
+      error: gasResult?.error || 'Google Apps Script returned an error. Order not saved.',
+    }
+  }
+
+  const orderId = gasResult.orderId
+  if (!orderId) {
+    return { success: false, error: 'No Order ID returned from server. Please try again.' }
+  }
+
+  // ── Step 2: Send PDF to local print agent ─────────────────────────────────
+  const agentOk = await sendToLocalAgent(
     orderId,
     orderData.fileName,
     orderData.pdfBase64 || '',
     orderData.screenshotBase64 || ''
   )
 
-  await gasGet({
-    action:        'saveOrder',
-    orderId,
-    name:          orderData.name,
-    fileName:      orderData.fileName,
-    totalPages:    String(orderData.totalPages),
-    copies:        String(orderData.copies),
-    printType:     orderData.printType,
-    printSide:     orderData.printSide || '',
-    amount:        String(orderData.amount),
-    transactionId: orderData.transactionId,
-  })
+  if (!agentOk) {
+    return {
+      success: false,
+      error: 'Cannot connect to Print Agent. Make sure the X Buddy desktop agent is running on the kiosk PC.',
+    }
+  }
 
+  // ── Both steps succeeded ──────────────────────────────────────────────────
   return { success: true, orderId }
 }

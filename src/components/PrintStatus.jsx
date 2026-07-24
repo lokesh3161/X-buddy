@@ -22,6 +22,8 @@ function statusToStage(status) {
 }
 
 export default function PrintStatus({ fileInfo, settings, orderId, onReset }) {
+  // Guard: this screen must never render without a real confirmed orderId
+  if (!orderId) return null
   const [stageIndex,    setStageIndex]    = useState(0)
   const [progress,      setProgress]      = useState(0)
   const [serverOffline, setServerOffline] = useState(false)
@@ -84,8 +86,8 @@ export default function PrintStatus({ fileInfo, settings, orderId, onReset }) {
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
           </svg>
         </motion.div>
-        <h2 className="text-2xl font-bold text-[#222222]">Order Confirmed!</h2>
-        <p className="text-gray-400 text-sm mt-1">Go to the printer booth to release your print</p>
+        <h2 className="text-2xl font-bold text-[#222222]">Order Confirmed</h2>
+        <p className="text-gray-400 text-sm mt-1">Your order was saved and sent to the printer. Go to the booth to collect.</p>
         {orderId && (
           <div className="inline-flex items-center gap-2 mt-3 px-4 py-1.5 rounded-full bg-orange-50 border border-orange-200">
             <span className="text-gray-400 text-xs">Order ID:</span>

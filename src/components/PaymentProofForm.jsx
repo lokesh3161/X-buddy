@@ -5,50 +5,98 @@ import { submitOrder } from '../utils/api'
 
 const inputCls = 'w-full bg-[#FAFAFA] border border-orange-200 rounded-xl px-4 py-2.5 text-[#222222] text-sm placeholder:text-gray-400 focus:outline-none focus:border-[#F78C25] focus:ring-1 focus:ring-orange-200 transition-all'
 
+const SUBMIT_STAGES = [
+  'Reading payment screenshot…',
+  'Encoding document…',
+  'Saving order to server…',
+  'Connecting to print agent…',
+  'Confirming order…',
+]
+
 export default function PaymentProofForm({ orderMeta, onSuccess, onClose }) {
-  const [phone, setPhone]               = useState('')
+  const [phone,         setPhone]         = useState('')
   const [transactionId, setTransactionId] = useState('')
-  const [screenshot, setScreenshot]     = useState(null)
-  const [preview, setPreview]           = useState(null)
-  const [loading, setLoading]           = useState(false)
-  const [loadingMsg, setLoadingMsg]     = useState('')
-  const [error, setError]               = useState('')
+  const [screenshot,    setScreenshot]    = useState(null)
+  const [preview,       setPreview]       = useState(null)
+  const [loading,       setLoading]       = useState(false)
+  const [stageIndex,    setStageIndex]    = useState(0)
+  const [error,         setError]         = useState('')
+  const [fieldError,    setFieldError]    = useState('')
   const fileInputRef = useRef()
 
   function handleScreenshot(file) {
     if (!file) return
-    if (!file.type.startsWith('image/')) { setError('Please upload an image file (JPG, PNG, etc.)'); return }
+    if (!file.type.startsWith('image/')) {
+      setFieldError('Please upload an image file (JPG, PNG, etc.)')
+      return
+    }
     setScreenshot(file)
     setPreview(URL.createObjectURL(file))
+    setFieldError('')
     setError('')
   }
 
   async function handleSubmit(e) {
     e.preventDefault()
     setError('')
-    if (!phone.trim())         return setError('Please enter your phone number.')
-    if (!transactionId.trim()) return setError('Please enter the Transaction ID.')
-    if (!screenshot)           return setError('Please upload your payment screenshot.')
+    setFieldError('')
+
+    if (!phone.trim())         return setFieldError('Please enter your phone number.')
+    if (!transactionId.trim()) return setFieldError('Please enter the Transaction ID.')
+    if (!screenshot)           return setFieldError('Please upload your payment screenshot.')
 
     setLoading(true)
+    setStageIndex(0)
+
     try {
+      setStageIndex(0)
       const screenshotBase64 = await fileToBase64(screenshot)
-      setLoadingMsg('Reading PDF...')
+
+      setStageIndex(1)
       const pdfBase64 = await fileToBase64(orderMeta.pdfFile)
-      setLoadingMsg('Sending PDF to printer...')
+
+      setStageIndex(2)
+      // Small delay so user sees the stage label before the network call
+      await tick()
+
       const result = await submitOrder({
-        name: phone.trim(), fileName: orderMeta.fileName, totalPages: orderMeta.totalPages,
-        copies: orderMeta.copies, printType: orderMeta.printType, printSide: orderMeta.printSide,
-        amount: orderMeta.amount, transactionId: transactionId.trim(), screenshotBase64, pdfBase64,
+        name:          phone.trim(),
+        fileName:      orderMeta.fileName,
+        totalPages:    orderMeta.totalPages,
+        copies:        orderMeta.copies,
+        printType:     orderMeta.printType,
+        printSide:     orderMeta.printSide,
+        amount:        orderMeta.amount,
+        transactionId: transactionId.trim(),
+        screenshotBase64,
+        pdfBase64,
       })
-      setLoadingMsg('Done!')
+
+      setStageIndex(4)
+
+      // ── STRICT CHECK: never call onSuccess unless backend confirmed ──
+      if (!result.success) {
+        setError(result.error || 'Order failed. Please try again.')
+        return
+      }
+
+      if (!result.orderId) {
+        setError('Server did not return an Order ID. Please contact the shopkeeper.')
+        return
+      }
+
       onSuccess(result.orderId)
+
     } catch (err) {
-      console.error(err)
-      onSuccess('XB' + (1000 + Math.floor(Math.random() * 9000)))
+      // Network-level or unexpected JS error — never fake success
+      setError(
+        err?.message?.includes('fetch')
+          ? 'Network connection lost. Please check your internet and try again.'
+          : `Unexpected error: ${err?.message || 'Unknown error'}. Please try again.`
+      )
     } finally {
       setLoading(false)
-      setLoadingMsg('')
+      setStageIndex(0)
     }
   }
 
@@ -59,29 +107,47 @@ export default function PaymentProofForm({ orderMeta, onSuccess, onClose }) {
       <form onSubmit={handleSubmit} className="space-y-3">
         <div>
           <label className="text-gray-500 text-xs mb-1 block">Phone Number</label>
-          <input type="tel" value={phone} onChange={(e) => setPhone(e.target.value)} placeholder="Enter your phone number" className={inputCls} />
+          <input
+            type="tel" value={phone}
+            onChange={(e) => { setPhone(e.target.value); setFieldError('') }}
+            placeholder="Enter your phone number"
+            className={inputCls}
+            disabled={loading}
+          />
         </div>
 
         <div>
           <label className="text-gray-500 text-xs mb-1 block">UPI Transaction ID</label>
-          <input type="text" value={transactionId} onChange={(e) => setTransactionId(e.target.value)} placeholder="e.g. 4358XXXXXXXX" className={inputCls + ' font-mono'} />
+          <input
+            type="text" value={transactionId}
+            onChange={(e) => { setTransactionId(e.target.value); setFieldError('') }}
+            placeholder="e.g. 4358XXXXXXXX"
+            className={inputCls + ' font-mono'}
+            disabled={loading}
+          />
         </div>
 
         <div>
           <label className="text-gray-500 text-xs mb-1 block">Payment Screenshot</label>
           <div
-            onClick={() => fileInputRef.current.click()}
-            className={`border-2 border-dashed rounded-xl p-4 text-center cursor-pointer transition-all ${
-              preview ? 'border-orange-300 bg-orange-50' : 'border-orange-200 hover:border-[#F78C25] hover:bg-orange-50'
+            onClick={() => !loading && fileInputRef.current.click()}
+            className={`border-2 border-dashed rounded-xl p-4 text-center transition-all ${
+              loading ? 'opacity-60 cursor-not-allowed' :
+              preview ? 'border-orange-300 bg-orange-50 cursor-pointer' :
+              'border-orange-200 hover:border-[#F78C25] hover:bg-orange-50 cursor-pointer'
             }`}
           >
-            <input ref={fileInputRef} type="file" accept="image/*" className="hidden" onChange={(e) => handleScreenshot(e.target.files[0])} />
+            <input
+              ref={fileInputRef} type="file" accept="image/*" className="hidden"
+              onChange={(e) => handleScreenshot(e.target.files[0])}
+              disabled={loading}
+            />
             <AnimatePresence mode="wait">
               {preview ? (
                 <motion.div key="preview" initial={{ opacity: 0 }} animate={{ opacity: 1 }}>
                   <img src={preview} alt="Payment screenshot" className="h-24 object-contain mx-auto rounded-lg mb-2" />
                   <p className="text-[#F78C25] text-xs">{screenshot.name}</p>
-                  <p className="text-gray-400 text-xs mt-0.5">Click to change</p>
+                  {!loading && <p className="text-gray-400 text-xs mt-0.5">Click to change</p>}
                 </motion.div>
               ) : (
                 <motion.div key="empty" initial={{ opacity: 0 }} animate={{ opacity: 1 }}>
@@ -98,28 +164,60 @@ export default function PaymentProofForm({ orderMeta, onSuccess, onClose }) {
           </div>
         </div>
 
+        {/* Field validation error */}
         <AnimatePresence>
-          {error && (
+          {fieldError && (
             <motion.p initial={{ opacity: 0, y: -4 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }}
-              className="text-red-500 text-xs bg-red-50 border border-red-200 rounded-lg px-3 py-2">
-              ⚠ {error}
+              className="text-amber-600 text-xs bg-amber-50 border border-amber-200 rounded-lg px-3 py-2"
+            >
+              ⚠ {fieldError}
             </motion.p>
           )}
         </AnimatePresence>
 
+        {/* Backend / network error — shown with retry affordance */}
+        <AnimatePresence>
+          {error && !loading && (
+            <motion.div
+              initial={{ opacity: 0, y: -4 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }}
+              className="bg-red-50 border border-red-200 rounded-xl px-4 py-3"
+            >
+              <div className="flex items-start gap-2">
+                <span className="text-red-500 text-base mt-0.5">❌</span>
+                <div className="flex-1">
+                  <p className="text-red-600 font-semibold text-xs">Order Failed</p>
+                  <p className="text-red-500 text-xs mt-0.5">{error}</p>
+                </div>
+              </div>
+              <p className="text-gray-400 text-xs mt-2">
+                Your file and form data are preserved. Fix the issue and tap <strong>Retry</strong>.
+              </p>
+            </motion.div>
+          )}
+        </AnimatePresence>
+
+        {/* Submit / Retry button */}
         <motion.button
-          type="submit" disabled={loading}
-          whileHover={{ scale: loading ? 1 : 1.02 }} whileTap={{ scale: loading ? 1 : 0.97 }}
+          type="submit"
+          disabled={loading}
+          whileHover={{ scale: loading ? 1 : 1.02 }}
+          whileTap={{ scale: loading ? 1 : 0.97 }}
           className="w-full py-3 bg-[#F78C25] hover:bg-[#e07010] disabled:bg-orange-200 disabled:cursor-not-allowed text-white font-bold text-sm rounded-xl transition-all duration-200 flex items-center justify-center gap-2"
         >
           {loading ? (
             <>
               <div className="w-4 h-4 border-2 border-white/40 border-t-white rounded-full animate-spin" />
-              {loadingMsg || 'Submitting Order...'}
+              <span>{SUBMIT_STAGES[stageIndex]}</span>
             </>
-          ) : '✓ Confirm & Submit Order'}
+          ) : error ? (
+            '↺ Retry Order'
+          ) : (
+            '✓ Confirm & Submit Order'
+          )}
         </motion.button>
       </form>
     </motion.div>
   )
 }
+
+function tick() { return new Promise(r => setTimeout(r, 80)) }
