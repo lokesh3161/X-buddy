@@ -1,7 +1,7 @@
 import { useEffect, useState, useRef } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 
-const API_URL = 'https://script.google.com/macros/s/AKfycby8ykWErzVD79TrafdArCmA6i9YipHVZOjw7zFWDjpL1e44HlKORx-GAnCuGGYgcmyB/exec'
+const API_URL = 'https://script.google.com/macros/s/AKfycbyWiu74FuFA-m-uord17vVKSN67y3_Hr7gH1u-mZ6SHafeD818LvRaA194C517_HinS/exec'
 const OFFLINE_TIMEOUT_MS = 30000
 const POLL_INTERVAL_MS   = 5000
 
@@ -61,7 +61,7 @@ export default function PrintStatus({ fileInfo, settings, orderId, onReset }) {
   }, [orderId])
 
   useEffect(() => {
-    const target = ((stageIndex + 1) / STAGES.length) * 100
+    const target = (stageIndex / (STAGES.length - 1)) * 100
     const step   = (target - progress) / 20
     let current  = progress
     const interval = setInterval(() => {
