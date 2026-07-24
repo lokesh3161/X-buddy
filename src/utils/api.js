@@ -73,55 +73,6 @@ async function localGet(path) {
   }
 }
 
-// Send PDF + screenshot — tries local first, then tunnel.
-// Returns the agent's response data on success, throws { step, reason } on failure.
-async function sendToLocalAgent(orderId, fileName, pdfBase64, screenshotBase64, printSettings = {}) {
-  const body = JSON.stringify({ orderId, fileName, pdfBase64, screenshotBase64, ...printSettings })
-
-  // 1. Try local agent directly (kiosk PC / same WiFi)
-  try {
-    const res = await fetch(`${LOCAL_API}/save-order`, {
-      method:  'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body,
-      signal:  AbortSignal.timeout(15000),
-    })
-    if (res.ok) {
-      const data = await res.json()
-      if (data?.success) return data
-      throw { step: 'print_agent', reason: data?.error || 'Print Agent Rejected Job' }
-    }
-  } catch (err) {
-    if (err?.step) throw err  // already typed — don't swallow
-    // else: network error (expected on mobile) — fall through to tunnel
-  }
-
-  // 2. Try tunnel (always used for mobile orders)
-  const tunnelUrl = await getTunnelUrl()
-  if (!tunnelUrl) throw { step: 'print_agent', reason: 'Printer Offline — could not reach print agent. Make sure the kiosk PC is running.' }
-
-  try {
-    const res = await fetch(`${tunnelUrl}/save-order`, {
-      method:  'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'cf-access-client-id': 'bypass',   // bypass Cloudflare interstitial
-      },
-      body,
-      signal:  AbortSignal.timeout(30000),
-    })
-    if (res.ok) {
-      const data = await res.json()
-      if (data?.success) return data
-      throw { step: 'print_agent', reason: data?.error || 'Print Agent Rejected Job' }
-    }
-    throw { step: 'print_agent', reason: `Agent returned HTTP ${res.status}` }
-  } catch (err) {
-    if (err?.step) throw err
-    throw { step: 'print_agent', reason: `Could not reach print agent via tunnel: ${err.message}` }
-  }
-}
-
 export async function getOrderStatus(orderId) {
   return await gasGet({ action: 'getOrderStatus', orderId })
 }
@@ -185,13 +136,10 @@ export async function validateAndRelease(orderId) {
 }
 
 // submitOrder — sequential, throws { step, reason } on any failure.
-// A collision-resistant ID is generated client-side and sent to GAS;
-// GAS echoes it back (or generates its own) — we always use the server-confirmed value.
 export async function submitOrder(orderData, { onStep } = {}) {
-  // Client-side ID: 'XB' + base-36 timestamp + 4 random chars = ~10^9 keyspace, not guessable
   const clientOrderId = 'XB' + String(Math.floor(1000 + Math.random() * 9000))
 
-  // ── Step 1: Save order record to Google Apps Script ───────────────────────────
+  // ── Step 1: Save order to GAS ─────────────────────────────────────────────
   onStep?.('save_order')
   let gasResult
   try {
@@ -222,29 +170,80 @@ export async function submitOrder(orderData, { onStep } = {}) {
   }
 
   const orderId = gasResult.orderId || clientOrderId
-  if (!orderId) throw { step: 'save_order', reason: 'Server did not return an Order ID' }
 
-  // ── Step 2: Send PDF to local print agent ─────────────────────────────────
+  // ── Step 2: Send PDF to print agent ──────────────────────────────────────
   onStep?.('print_agent')
-  const agentData = await sendToLocalAgent(
-    orderId,
-    orderData.fileName,
-    orderData.pdfBase64 || '',
-    orderData.screenshotBase64 || '',
-    {
-      copies:      orderData.copies,
-      printSide:   orderData.printSide,
-      colorMode:   orderData.printType,   // 'B&W' or 'Color'
-      pageSize:    orderData.pageSize,
-      orientation: orderData.orientation,
-      pageRange:   orderData.pageRange,
-    }
-  )
+  const printSettings = {
+    copies:      orderData.copies,
+    printSide:   orderData.printSide,
+    colorMode:   orderData.printType,
+    pageSize:    orderData.pageSize,
+    orientation: orderData.orientation,
+    pageRange:   orderData.pageRange,
+  }
 
+  // Try local agent first (works on kiosk PC and same-WiFi devices)
+  const localOk = await tryLocalAgent(orderId, orderData, printSettings)
+  if (localOk) return { success: true, orderId, message: null }
+
+  // Try tunnel for mobile orders
+  const tunnelOk = await tryTunnelAgent(orderId, orderData, printSettings)
+  if (tunnelOk) return { success: true, orderId, message: null }
+
+  // Both failed — order is saved in GAS but PDF not at agent yet.
+  // This is NOT a hard failure: the shopkeeper can manually handle it.
+  // We still return success with a warning so the user gets their order ID.
   return {
-    success:     true,
+    success: true,
     orderId,
-    agentStatus: agentData?.status ?? null,   // whatever the agent actually returns
-    message:     agentData?.message ?? null,
+    message: 'Order saved! PDF delivery to printer pending — show your Order ID to the shopkeeper.',
+  }
+}
+
+async function tryLocalAgent(orderId, orderData, printSettings) {
+  try {
+    const body = JSON.stringify({
+      orderId,
+      fileName:        orderData.fileName,
+      pdfBase64:       orderData.pdfBase64 || '',
+      screenshotBase64: orderData.screenshotBase64 || '',
+      ...printSettings,
+    })
+    const res = await fetch(`${LOCAL_API}/save-order`, {
+      method:  'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body,
+      signal:  AbortSignal.timeout(15000),
+    })
+    if (!res.ok) return false
+    const data = await res.json()
+    return !!data?.success
+  } catch {
+    return false
+  }
+}
+
+async function tryTunnelAgent(orderId, orderData, printSettings) {
+  const tunnelUrl = await getTunnelUrl()
+  if (!tunnelUrl) return false
+  try {
+    const body = JSON.stringify({
+      orderId,
+      fileName:        orderData.fileName,
+      pdfBase64:       orderData.pdfBase64 || '',
+      screenshotBase64: orderData.screenshotBase64 || '',
+      ...printSettings,
+    })
+    const res = await fetch(`${tunnelUrl}/save-order`, {
+      method:  'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body,
+      signal:  AbortSignal.timeout(30000),
+    })
+    if (!res.ok) return false
+    const data = await res.json()
+    return !!data?.success
+  } catch {
+    return false
   }
 }
