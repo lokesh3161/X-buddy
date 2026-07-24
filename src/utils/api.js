@@ -162,12 +162,31 @@ export async function validateAndRelease(orderId) {
 }
 
 export async function submitOrder(orderData) {
-  // ── Step 1: Save order to Google Apps Script ──────────────────────────────
+  // Generate orderId here — GAS is a dumb sheet writer, not an ID authority
+  const orderId = 'XB' + Date.now().toString().slice(-6)
+
+  // ── Step 1: Send PDF to local print agent first (heaviest op, fail fast) ──
+  const agentOk = await sendToLocalAgent(
+    orderId,
+    orderData.fileName,
+    orderData.pdfBase64 || '',
+    orderData.screenshotBase64 || ''
+  )
+
+  if (!agentOk) {
+    return {
+      success: false,
+      error: 'Cannot connect to Print Agent. Make sure the X Buddy desktop agent is running on the kiosk PC.',
+    }
+  }
+
+  // ── Step 2: Save order record to Google Apps Script ───────────────────────
   let gasResult = null
   try {
     const res = await fetch(
       `${API_URL}?${new URLSearchParams({
         action:        'saveOrder',
+        orderId,
         name:          orderData.name,
         fileName:      orderData.fileName,
         totalPages:    String(orderData.totalPages),
@@ -183,8 +202,8 @@ export async function submitOrder(orderData) {
     gasResult = await res.json()
   } catch (err) {
     const msg = err.name === 'TimeoutError'
-      ? 'Google Apps Script timed out. Please check your connection.'
-      : `Unable to save order: ${err.message}`
+      ? 'Order record timed out saving to sheet. Please inform the shopkeeper with Order ID: ' + orderId
+      : `Unable to save order record: ${err.message}`
     return { success: false, error: msg }
   }
 
@@ -192,26 +211,6 @@ export async function submitOrder(orderData) {
     return {
       success: false,
       error: gasResult?.error || 'Google Apps Script returned an error. Order not saved.',
-    }
-  }
-
-  const orderId = gasResult.orderId
-  if (!orderId) {
-    return { success: false, error: 'No Order ID returned from server. Please try again.' }
-  }
-
-  // ── Step 2: Send PDF to local print agent ─────────────────────────────────
-  const agentOk = await sendToLocalAgent(
-    orderId,
-    orderData.fileName,
-    orderData.pdfBase64 || '',
-    orderData.screenshotBase64 || ''
-  )
-
-  if (!agentOk) {
-    return {
-      success: false,
-      error: 'Cannot connect to Print Agent. Make sure the X Buddy desktop agent is running on the kiosk PC.',
     }
   }
 
