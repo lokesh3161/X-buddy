@@ -58,8 +58,8 @@ async function localGet(path) {
 
 // Send PDF + screenshot — tries local first, then tunnel.
 // Returns the agent's response data on success, throws { step, reason } on failure.
-async function sendToLocalAgent(orderId, fileName, pdfBase64, screenshotBase64) {
-  const body = JSON.stringify({ orderId, fileName, pdfBase64, screenshotBase64 })
+async function sendToLocalAgent(orderId, fileName, pdfBase64, screenshotBase64, printSettings = {}) {
+  const body = JSON.stringify({ orderId, fileName, pdfBase64, screenshotBase64, ...printSettings })
 
   // 1. Try local agent directly
   try {
@@ -204,7 +204,15 @@ export async function submitOrder(orderData, { onStep } = {}) {
     orderId,
     orderData.fileName,
     orderData.pdfBase64 || '',
-    orderData.screenshotBase64 || ''
+    orderData.screenshotBase64 || '',
+    {
+      copies:      orderData.copies,
+      printSide:   orderData.printSide,
+      colorMode:   orderData.printType,   // 'B&W' or 'Color'
+      pageSize:    orderData.pageSize,
+      orientation: orderData.orientation,
+      pageRange:   orderData.pageRange,
+    }
   )
 
   return {
