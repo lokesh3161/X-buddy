@@ -7,51 +7,39 @@
 }
 
 body {
-  background-color: #0a0a0f;
-  color: #f1f0ff;
+  background-color: #FAFAFA;
+  color: #222222;
 }
 
 /* Custom scrollbar */
-::-webkit-scrollbar {
-  width: 5px;
-  height: 5px;
-}
-::-webkit-scrollbar-track {
-  background: transparent;
-}
-::-webkit-scrollbar-thumb {
-  background: #3b3b52;
-  border-radius: 4px;
-}
-::-webkit-scrollbar-thumb:hover {
-  background: #7c3aed;
-}
+::-webkit-scrollbar { width: 5px; height: 5px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: #e5c9b0; border-radius: 4px; }
+::-webkit-scrollbar-thumb:hover { background: #F78C25; }
 
-/* Thin scrollbar utility */
 .scrollbar-thin {
   scrollbar-width: thin;
-  scrollbar-color: #3b3b52 transparent;
+  scrollbar-color: #e5c9b0 transparent;
 }
 
-/* Glow effect utility */
-.glow-purple {
-  box-shadow: 0 0 30px rgba(139, 92, 246, 0.3);
+/* Glow */
+.glow-orange {
+  box-shadow: 0 0 30px rgba(247, 140, 37, 0.25);
+}
+.glow-orange-sm {
+  box-shadow: 0 0 15px rgba(247, 140, 37, 0.15);
 }
 
-.glow-purple-sm {
-  box-shadow: 0 0 15px rgba(139, 92, 246, 0.2);
-}
-
-/* Glass card */
+/* Glass card — light version */
 .glass {
-  background: rgba(255, 255, 255, 0.03);
+  background: rgba(255, 255, 255, 0.85);
   backdrop-filter: blur(12px);
-  border: 1px solid rgba(139, 92, 246, 0.15);
+  border: 1px solid rgba(247, 140, 37, 0.15);
 }
 
 /* Gradient text */
 .gradient-text {
-  background: linear-gradient(135deg, #a78bfa, #7c3aed, #c4b5fd);
+  background: linear-gradient(135deg, #F78C25, #e07010, #ffb347);
   -webkit-background-clip: text;
   -webkit-text-fill-color: transparent;
   background-clip: text;
@@ -62,7 +50,6 @@ body {
   from { width: 0%; }
   to { width: var(--target-width); }
 }
-
 .progress-animate {
   animation: progress-fill 0.5s ease-out forwards;
 }

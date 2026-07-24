@@ -62,10 +62,10 @@ export default function LetterGenerator({ onPrintGenerated }) {
         viewport={{ once: true }}
         className="text-center mb-12"
       >
-        <div className="inline-flex items-center gap-2 px-4 py-1.5 rounded-full border border-purple-500/30 bg-purple-500/10 text-purple-400 text-sm font-medium mb-4">
+        <div className="inline-flex items-center gap-2 px-4 py-1.5 rounded-full border border-orange-300 bg-orange-50 text-[#F78C25] text-sm font-medium mb-4">
           <span>✍️</span> Smart Letter Generator
         </div>
-        <h2 className="text-3xl md:text-4xl font-bold text-white mb-3">
+        <h2 className="text-3xl md:text-4xl font-bold text-[#222222] mb-3">
           Generate Letters <span className="gradient-text">Instantly</span>
         </h2>
         <p className="text-gray-500 max-w-xl mx-auto">
@@ -79,7 +79,7 @@ export default function LetterGenerator({ onPrintGenerated }) {
           initial={{ opacity: 0, x: -20 }}
           whileInView={{ opacity: 1, x: 0 }}
           viewport={{ once: true }}
-          className="glass rounded-2xl p-6 space-y-4"
+          className="bg-white border border-orange-100 rounded-2xl p-6 space-y-4"
         >
           {/* Letter type */}
           <div>
@@ -92,8 +92,8 @@ export default function LetterGenerator({ onPrintGenerated }) {
                   onClick={() => handleChange('type', t.id)}
                   className={`py-2 px-2 rounded-xl text-xs font-medium transition-all flex flex-col items-center gap-1 ${
                     form.type === t.id
-                      ? 'bg-purple-600 text-white'
-                      : 'bg-white/5 text-gray-400 hover:bg-white/10'
+                      ? 'bg-[#F78C25] text-white'
+                      : 'bg-orange-50 border border-orange-100 text-gray-500 hover:border-[#F78C25]'
                   }`}
                 >
                   <span>{t.icon}</span>
@@ -120,7 +120,7 @@ export default function LetterGenerator({ onPrintGenerated }) {
                 value={form[field]}
                 onChange={e => handleChange(field, e.target.value)}
                 placeholder={placeholder}
-                className="w-full bg-neutral-900 border border-neutral-700 rounded-xl px-4 py-2.5 text-white text-sm placeholder:text-neutral-500 focus:outline-none focus:border-violet-500 focus:ring-1 focus:ring-violet-500/30 transition-all"
+                className="w-full bg-[#FFF8F2] border border-orange-200 rounded-xl px-4 py-2.5 text-[#222222] text-sm placeholder:text-gray-400 focus:outline-none focus:border-[#F78C25] focus:ring-1 focus:ring-orange-200 transition-all"
               />
             </div>
           ))}
@@ -132,7 +132,7 @@ export default function LetterGenerator({ onPrintGenerated }) {
               onChange={e => handleChange('extra', e.target.value)}
               placeholder="Any extra information..."
               rows={3}
-              className="w-full bg-neutral-900 border border-neutral-700 rounded-xl px-4 py-2.5 text-white text-sm placeholder:text-neutral-500 focus:outline-none focus:border-violet-500 focus:ring-1 focus:ring-violet-500/30 transition-all resize-none"
+              className="w-full bg-[#FFF8F2] border border-orange-200 rounded-xl px-4 py-2.5 text-[#222222] text-sm placeholder:text-gray-400 focus:outline-none focus:border-[#F78C25] focus:ring-1 focus:ring-orange-200 transition-all resize-none"
             />
           </div>
 
@@ -140,7 +140,7 @@ export default function LetterGenerator({ onPrintGenerated }) {
             whileHover={{ scale: 1.02 }}
             whileTap={{ scale: 0.97 }}
             onClick={handleGenerate}
-            className="w-full py-3 bg-purple-600 hover:bg-purple-500 text-white font-bold rounded-xl transition-all"
+            className="w-full py-3 bg-[#F78C25] hover:bg-[#e07010] text-white font-bold rounded-xl transition-all"
           >
             ✍️ Generate Letter
           </motion.button>
@@ -151,10 +151,10 @@ export default function LetterGenerator({ onPrintGenerated }) {
           initial={{ opacity: 0, x: 20 }}
           whileInView={{ opacity: 1, x: 0 }}
           viewport={{ once: true }}
-          className="glass rounded-2xl p-6 flex flex-col"
+          className="bg-white border border-orange-100 rounded-2xl p-6 flex flex-col"
         >
           <div className="flex items-center justify-between mb-4">
-            <p className="text-white font-semibold text-sm">
+            <p className="text-[#222222] font-semibold text-sm">
               {selectedType?.icon} {selectedType?.label} Preview
             </p>
             <AnimatePresence>
@@ -166,13 +166,13 @@ export default function LetterGenerator({ onPrintGenerated }) {
                 >
                   <button
                     onClick={handleDownload}
-                    className="px-3 py-1.5 rounded-lg bg-white/5 hover:bg-white/10 text-gray-400 text-xs font-medium transition-all"
+                    className="px-3 py-1.5 rounded-lg bg-orange-50 hover:bg-orange-100 border border-orange-200 text-gray-500 text-xs font-medium transition-all"
                   >
                     ↓ Download PDF
                   </button>
                   <button
                     onClick={handlePrint}
-                    className="px-3 py-1.5 rounded-lg bg-purple-600/30 hover:bg-purple-600/50 text-purple-400 text-xs font-medium transition-all"
+                    className="px-3 py-1.5 rounded-lg bg-[#F78C25] hover:bg-[#e07010] text-white text-xs font-medium transition-all"
                   >
                     🖨️ Print with X Buddy
                   </button>
@@ -181,19 +181,19 @@ export default function LetterGenerator({ onPrintGenerated }) {
             </AnimatePresence>
           </div>
 
-          <div className="flex-1 bg-neutral-900/50 border border-neutral-800 rounded-xl p-4 overflow-y-auto min-h-[400px]">
+          <div className="flex-1 bg-[#FFF8F2] border border-orange-100 rounded-xl p-4 overflow-y-auto min-h-[400px]">
             {shown ? (
-              <pre className="text-gray-200 text-xs leading-relaxed whitespace-pre-wrap font-mono">
+              <pre className="text-[#222222] text-xs leading-relaxed whitespace-pre-wrap font-mono">
                 {preview}
               </pre>
             ) : (
               <div className="h-full min-h-[360px] flex flex-col items-center justify-center text-center">
-                <div className="w-14 h-14 rounded-2xl bg-neutral-800 border border-neutral-700 flex items-center justify-center text-neutral-500 mb-4">
+                <div className="w-14 h-14 rounded-2xl bg-orange-50 border border-orange-200 flex items-center justify-center text-[#F78C25] mb-4">
                   <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" className="w-7 h-7"><path strokeLinecap="round" strokeLinejoin="round" d="M16.862 4.487l1.687-1.688a1.875 1.875 0 112.652 2.652L10.582 16.07a4.5 4.5 0 01-1.897 1.13L6 18l.8-2.685a4.5 4.5 0 011.13-1.897l8.932-8.931zm0 0L19.5 7.125M18 14v4.75A2.25 2.25 0 0115.75 21H5.25A2.25 2.25 0 013 18.75V8.25A2.25 2.25 0 015.25 6H10" /></svg>
                 </div>
-                <p className="text-gray-400 text-sm font-medium">Letter preview will appear here</p>
-                <p className="text-neutral-600 text-xs mt-1.5">Fill in the form and click</p>
-                <span className="mt-2 px-3 py-1 rounded-full bg-purple-500/10 border border-purple-500/20 text-purple-400 text-xs font-medium">Generate Letter</span>
+                <p className="text-gray-500 text-sm font-medium">Letter preview will appear here</p>
+                <p className="text-gray-400 text-xs mt-1.5">Fill in the form and click</p>
+                <span className="mt-2 px-3 py-1 rounded-full bg-orange-50 border border-orange-200 text-[#F78C25] text-xs font-medium">Generate Letter</span>
               </div>
             )}
           </div>

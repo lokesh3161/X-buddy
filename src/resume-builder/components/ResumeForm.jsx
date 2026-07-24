@@ -1,8 +1,8 @@
 import { useState } from 'react'
 import { useResume } from '../resumeStore.jsx'
 
-const inputCls = 'w-full bg-neutral-900 border border-neutral-700 rounded-lg px-3 py-2 text-white text-xs placeholder:text-neutral-500 focus:outline-none focus:border-violet-500 focus:ring-1 focus:ring-violet-500/20 transition-all'
-const labelCls = 'text-gray-400 text-xs mb-1 block'
+const inputCls = 'w-full bg-orange-50/60 border border-orange-100 rounded-lg px-3 py-2 text-[#222222] text-xs placeholder:text-gray-400 focus:outline-none focus:border-[#F78C25] focus:ring-1 focus:ring-orange-200 transition-all'
+const labelCls = 'text-[#6B7280] text-xs mb-1 block'
 
 function Field({ label, field, section, placeholder, type = 'text' }) {
   const { resume, updatePersonal, updateSkills } = useResume()
@@ -21,18 +21,18 @@ function Field({ label, field, section, placeholder, type = 'text' }) {
 function Accordion({ title, icon, defaultOpen = false, children }) {
   const [open, setOpen] = useState(defaultOpen)
   return (
-    <div className="border border-neutral-800 rounded-xl overflow-hidden">
+    <div className="border border-orange-100 rounded-xl overflow-hidden">
       <button
         onClick={() => setOpen(o => !o)}
-        className="w-full flex items-center justify-between px-4 py-3 bg-neutral-900/60 hover:bg-neutral-800/60 transition-all"
+        className="w-full flex items-center justify-between px-4 py-3 bg-orange-50/70 hover:bg-orange-50 transition-all"
       >
         <div className="flex items-center gap-2">
           <span className="text-base">{icon}</span>
-          <span className="text-white text-xs font-semibold">{title}</span>
+          <span className="text-[#222222] text-xs font-semibold">{title}</span>
         </div>
-        <span className={`text-gray-500 text-xs transition-transform duration-200 ${open ? 'rotate-180' : ''}`}>▾</span>
+        <span className={`text-[#6B7280] text-xs transition-transform duration-200 ${open ? 'rotate-180' : ''}`}>▾</span>
       </button>
-      {open && <div className="p-4 space-y-3 bg-[#0f0f17]">{children}</div>}
+      {open && <div className="p-4 space-y-3 bg-white">{children}</div>}
     </div>
   )
 }
@@ -42,11 +42,11 @@ function ListSection({ section, items, template, renderItem, addLabel }) {
   return (
     <div className="space-y-3">
       {items.map((item, idx) => (
-        <div key={item.id} className="relative border border-neutral-800 rounded-lg p-3 space-y-2 bg-neutral-900/30">
+        <div key={item.id} className="relative border border-orange-100 rounded-lg p-3 space-y-2 bg-orange-50/30">
           {items.length > 1 && (
             <button
               onClick={() => removeListItem(section, item.id)}
-              className="absolute top-2 right-2 w-5 h-5 rounded-full bg-red-500/10 hover:bg-red-500/20 text-red-400 text-xs flex items-center justify-center transition-all"
+              className="absolute top-2 right-2 w-5 h-5 rounded-full bg-red-50 hover:bg-red-100 text-red-400 text-xs flex items-center justify-center transition-all"
             >✕</button>
           )}
           {renderItem(item, idx)}
@@ -54,7 +54,7 @@ function ListSection({ section, items, template, renderItem, addLabel }) {
       ))}
       <button
         onClick={() => addListItem(section, template)}
-        className="w-full py-2 border border-dashed border-neutral-700 hover:border-violet-500/50 rounded-lg text-gray-500 hover:text-violet-400 text-xs transition-all"
+        className="w-full py-2 border border-dashed border-orange-200 hover:border-[#F78C25] rounded-lg text-[#6B7280] hover:text-[#F78C25] text-xs transition-all"
       >
         + {addLabel}
       </button>

@@ -21,10 +21,10 @@ export default function QuickForms({ onPrintFile }) {
         viewport={{ once: true }}
         className="text-center mb-12"
       >
-        <div className="inline-flex items-center gap-2 px-4 py-1.5 rounded-full border border-purple-500/30 bg-purple-500/10 text-purple-400 text-sm font-medium mb-4">
+        <div className="inline-flex items-center gap-2 px-4 py-1.5 rounded-full border border-orange-300 bg-orange-50 text-[#F78C25] text-sm font-medium mb-4">
           <span>⚡</span> Quick Print Forms
         </div>
-        <h2 className="text-3xl md:text-4xl font-bold text-white mb-3">
+        <h2 className="text-3xl md:text-4xl font-bold text-[#222222] mb-3">
           Common Forms, <span className="gradient-text">Instantly Ready</span>
         </h2>
         <p className="text-gray-500 max-w-xl mx-auto">
@@ -41,26 +41,26 @@ export default function QuickForms({ onPrintFile }) {
             whileInView={{ opacity: 1, y: 0 }}
             viewport={{ once: true }}
             transition={{ delay: i * 0.05 }}
-            className="glass rounded-2xl p-5 flex flex-col gap-3 hover:border-purple-500/40 hover:bg-purple-500/5 transition-all group"
+            className="bg-white border border-orange-100 rounded-2xl p-5 flex flex-col gap-3 hover:border-[#F78C25] hover:shadow-md transition-all group"
           >
-            <div className="w-10 h-10 rounded-xl bg-purple-500/10 flex items-center justify-center text-xl group-hover:scale-110 transition-transform">
+            <div className="w-10 h-10 rounded-xl bg-orange-50 border border-orange-200 flex items-center justify-center text-xl group-hover:scale-110 transition-transform">
               {form.icon}
             </div>
             <div className="flex-1">
-              <p className="text-white font-semibold text-sm">{form.title}</p>
-              <p className="text-gray-600 text-xs mt-0.5">{form.desc}</p>
+              <p className="text-[#222222] font-semibold text-sm">{form.title}</p>
+              <p className="text-gray-400 text-xs mt-0.5">{form.desc}</p>
             </div>
             <div className="flex gap-2">
               <a
                 href={`/forms/${form.file}`}
                 download
-                className="flex-1 py-1.5 rounded-lg bg-white/5 hover:bg-white/10 text-gray-400 text-xs font-medium text-center transition-all"
+                className="flex-1 py-1.5 rounded-lg bg-orange-50 hover:bg-orange-100 border border-orange-200 text-gray-500 text-xs font-medium text-center transition-all"
               >
                 ↓ Download
               </a>
               <button
                 onClick={() => onPrintFile(`/forms/${form.file}`, form.title)}
-                className="flex-1 py-1.5 rounded-lg bg-purple-600/20 hover:bg-purple-600/40 text-purple-400 text-xs font-medium transition-all"
+                className="flex-1 py-1.5 rounded-lg bg-[#F78C25] hover:bg-[#e07010] text-white text-xs font-medium transition-all"
               >
                 🖨️ Print
               </button>
@@ -69,8 +69,8 @@ export default function QuickForms({ onPrintFile }) {
         ))}
       </div>
 
-      <p className="text-center text-gray-700 text-xs mt-6">
-        Place your PDF files in <span className="font-mono text-gray-600">public/forms/</span> folder
+      <p className="text-center text-gray-400 text-xs mt-6">
+        Place your PDF files in <span className="font-mono text-gray-500">public/forms/</span> folder
       </p>
     </section>
   )
