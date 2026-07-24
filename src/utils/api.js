@@ -1,5 +1,5 @@
-const API_URL   = 'https://script.google.com/macros/s/AKfycbyWiu74FuFA-m-uord17vVKSN67y3_Hr7gH1u-mZ6SHafeD818LvRaA194C517_HinS/exec'
-const LOCAL_API = 'http://localhost:3001'
+const API_URL    = 'https://script.google.com/macros/s/AKfycbyWiu74FuFA-m-uord17vVKSN67y3_Hr7gH1u-mZ6SHafeD818LvRaA194C517_HinS/exec'
+const LOCAL_API  = 'http://localhost:3001'
 const GITHUB_RAW = 'https://raw.githubusercontent.com/lokesh3161/X-buddy/main/public/tunnel-url.txt'
 
 let _tunnelUrl = null
@@ -10,7 +10,7 @@ async function getTunnelUrl() {
   const now = Date.now()
   if (_tunnelUrl && (now - _tunnelFetchedAt) < TUNNEL_TTL) return _tunnelUrl
 
-  // Local agent (kiosk / same WiFi) — fast timeout on mobile
+  // Local agent — fast timeout
   try {
     const res = await fetch(`${LOCAL_API}/tunnel-url`, { signal: AbortSignal.timeout(500) })
     if (res.ok) {
@@ -19,7 +19,7 @@ async function getTunnelUrl() {
     }
   } catch {}
 
-  // GitHub raw — pushed by bat file on every start
+  // GitHub raw
   try {
     const res = await fetch(`${GITHUB_RAW}?t=${now}`, { signal: AbortSignal.timeout(6000) })
     if (res.ok) {
@@ -56,83 +56,66 @@ async function localGet(path) {
   } catch { return null }
 }
 
-// Upload PDF to GAS Drive in 200KB chunks — works from any network
+// Upload PDF to GAS Drive in 200KB chunks
 async function uploadPdfViaGas(orderId, fileName, pdfBase64) {
-  const CHUNK_SIZE = 200 * 1024  // 200KB per chunk (GAS property limit safe)
+  const CHUNK_SIZE = 200 * 1024
   const total = Math.ceil(pdfBase64.length / CHUNK_SIZE)
 
   for (let i = 0; i < total; i++) {
     const chunk = pdfBase64.slice(i * CHUNK_SIZE, (i + 1) * CHUNK_SIZE)
     const params = new URLSearchParams({
-      action:   'saveChunk',
-      fileId:   orderId,
-      fileType: 'pdf',
-      index:    String(i),
-      total:    String(total),
-      chunk,
+      action: 'saveChunk', fileId: orderId, fileType: 'pdf',
+      index: String(i), total: String(total), chunk,
     })
     const res = await fetch(`${API_URL}?${params.toString()}`, { signal: AbortSignal.timeout(30000) })
-    if (!res.ok) throw new Error(`Chunk ${i} upload failed: HTTP ${res.status}`)
+    if (!res.ok) throw new Error(`Chunk ${i} failed: HTTP ${res.status}`)
     const data = await res.json()
-    if (!data?.success) throw new Error(`Chunk ${i} rejected by server`)
+    if (!data?.success) throw new Error(`Chunk ${i} rejected`)
   }
 
-  // Assemble chunks into Drive file
   const assembleParams = new URLSearchParams({
-    action:   'assemblePdf',
-    fileId:   orderId,
-    fileName: fileName,
-    mimeType: 'application/pdf',
+    action: 'assemblePdf', fileId: orderId,
+    fileName, mimeType: 'application/pdf',
   })
   const res = await fetch(`${API_URL}?${assembleParams.toString()}`, { signal: AbortSignal.timeout(60000) })
   if (!res.ok) throw new Error(`Assemble failed: HTTP ${res.status}`)
   const data = await res.json()
-  if (!data?.success || !data?.fileUrl) throw new Error('PDF assembly failed — no Drive URL returned')
+  if (!data?.success || !data?.fileUrl) throw new Error('Assembly failed — no Drive URL')
   return data.fileUrl
 }
 
-// Try sending PDF directly to local agent (kiosk PC / same WiFi)
-async function tryLocalAgent(orderId, orderData, printSettings) {
-  try {
-    const res = await fetch(`${LOCAL_API}/save-order`, {
-      method:  'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body:    JSON.stringify({
-        orderId,
-        fileName:         orderData.fileName,
-        pdfBase64:        orderData.pdfBase64 || '',
-        screenshotBase64: orderData.screenshotBase64 || '',
-        ...printSettings,
-      }),
-      signal: AbortSignal.timeout(15000),
-    })
-    if (!res.ok) return false
-    const data = await res.json()
-    return !!data?.success
-  } catch { return false }
-}
+// Send only metadata + driveUrl to agent (no PDF in body — avoids Cloudflare block)
+async function notifyAgent(orderId, driveUrl, printSettings, screenshotBase64) {
+  const body = JSON.stringify({ orderId, driveUrl, screenshotBase64: screenshotBase64 || '', ...printSettings })
 
-// Try sending PDF via Cloudflare tunnel (mobile on same WiFi as kiosk)
-async function tryTunnelAgent(orderId, orderData, printSettings) {
-  const tunnelUrl = await getTunnelUrl()
-  if (!tunnelUrl) return false
+  // Try local first
   try {
-    const res = await fetch(`${tunnelUrl}/save-order`, {
-      method:  'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body:    JSON.stringify({
-        orderId,
-        fileName:         orderData.fileName,
-        pdfBase64:        orderData.pdfBase64 || '',
-        screenshotBase64: orderData.screenshotBase64 || '',
-        ...printSettings,
-      }),
-      signal: AbortSignal.timeout(30000),
+    const res = await fetch(`${LOCAL_API}/save-order-meta`, {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body, signal: AbortSignal.timeout(5000),
     })
-    if (!res.ok) return false
-    const data = await res.json()
-    return !!data?.success
-  } catch { return false }
+    if (res.ok) {
+      const data = await res.json()
+      if (data?.success) return true
+    }
+  } catch {}
+
+  // Try tunnel (metadata is tiny — always works through Cloudflare)
+  const tunnelUrl = await getTunnelUrl()
+  if (tunnelUrl) {
+    try {
+      const res = await fetch(`${tunnelUrl}/save-order-meta`, {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body, signal: AbortSignal.timeout(10000),
+      })
+      if (res.ok) {
+        const data = await res.json()
+        if (data?.success) return true
+      }
+    } catch {}
+  }
+
+  return false
 }
 
 export async function getOrderStatus(orderId) {
@@ -203,28 +186,22 @@ export async function submitOrder(orderData, { onStep } = {}) {
     pageRange:   orderData.pageRange   || 'all',
   }
 
-  // ── Step 1: Save order to GAS ──────────────────────────────────────────────
+  // ── Step 1: Save order to GAS ─────────────────────────────────────────────
   onStep?.('save_order')
   let gasResult
   try {
     const res = await fetch(
       `${API_URL}?${new URLSearchParams({
-        action:        'saveOrder',
-        orderId:       clientOrderId,
-        name:          orderData.name,
-        fileName:      orderData.fileName,
-        totalPages:    String(orderData.totalPages),
-        copies:        String(orderData.copies),
-        printType:     orderData.printType   || 'B&W',
-        printSide:     orderData.printSide   || 'Single',
-        pageSize:      orderData.pageSize    || 'A4',
-        orientation:   orderData.orientation || 'portrait',
-        amount:        String(orderData.amount),
-        transactionId: orderData.transactionId,
+        action: 'saveOrder', orderId: clientOrderId,
+        name: orderData.name, fileName: orderData.fileName,
+        totalPages: String(orderData.totalPages), copies: String(orderData.copies),
+        printType: orderData.printType || 'B&W', printSide: orderData.printSide || 'Single',
+        pageSize: orderData.pageSize || 'A4', orientation: orderData.orientation || 'portrait',
+        amount: String(orderData.amount), transactionId: orderData.transactionId,
       }).toString()}`,
       { signal: AbortSignal.timeout(20000) }
     )
-    if (!res.ok) throw { step: 'save_order', reason: `Server Error (HTTP ${res.status})` }
+    if (!res.ok) throw { step: 'save_order', reason: `HTTP ${res.status}` }
     gasResult = await res.json()
   } catch (err) {
     if (err?.step) throw err
@@ -234,40 +211,37 @@ export async function submitOrder(orderData, { onStep } = {}) {
   if (!gasResult?.success) throw { step: 'save_order', reason: gasResult?.error || 'Unable to Save Order' }
   const orderId = gasResult.orderId || clientOrderId
 
-  // ── Step 2: Send PDF to print agent ───────────────────────────────────────
+  // ── Step 2: Upload PDF to Drive + notify agent ────────────────────────────
   onStep?.('print_agent')
 
-  // Try direct local first (instant on kiosk PC)
-  const localOk = await tryLocalAgent(orderId, orderData, printSettings)
-  if (localOk) return { success: true, orderId, message: null }
+  // If on kiosk (localhost reachable), send PDF directly — fast and reliable
+  try {
+    const res = await fetch(`${LOCAL_API}/save-order`, {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        orderId, fileName: orderData.fileName,
+        pdfBase64: orderData.pdfBase64 || '',
+        screenshotBase64: orderData.screenshotBase64 || '',
+        ...printSettings,
+      }),
+      signal: AbortSignal.timeout(15000),
+    })
+    if (res.ok) {
+      const data = await res.json()
+      if (data?.success) return { success: true, orderId, message: null }
+    }
+  } catch {}
 
-  // Try tunnel (mobile on same WiFi as kiosk — small PDFs work)
-  const tunnelOk = await tryTunnelAgent(orderId, orderData, printSettings)
-  if (tunnelOk) return { success: true, orderId, message: null }
-
-  // Fallback: upload PDF to Google Drive via GAS chunks (works from any network)
-  // Agent will download from Drive URL when shopkeeper releases the print
+  // Mobile path: upload PDF to Drive, then send tiny metadata to agent via tunnel
   try {
     const driveUrl = await uploadPdfViaGas(orderId, orderData.fileName, orderData.pdfBase64 || '')
-    // Notify agent about the Drive URL via tunnel if available
-    const tunnelUrl = await getTunnelUrl()
-    if (tunnelUrl) {
-      try {
-        await fetch(`${tunnelUrl}/save-order-meta`, {
-          method:  'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body:    JSON.stringify({ orderId, driveUrl, ...printSettings }),
-          signal:  AbortSignal.timeout(10000),
-        })
-      } catch {}
-    }
+    await notifyAgent(orderId, driveUrl, printSettings, orderData.screenshotBase64)
     return { success: true, orderId, message: null }
-  } catch (err) {
-    // PDF upload to Drive also failed — order is saved, user has ID, shopkeeper handles manually
+  } catch {
+    // Drive upload failed — order is saved in sheet, shopkeeper can handle manually
     return {
-      success: true,
-      orderId,
-      message: 'Order confirmed! Show your Order ID to the shopkeeper to collect your print.',
+      success: true, orderId,
+      message: 'Order saved! Show your Order ID to the shopkeeper.',
     }
   }
 }
