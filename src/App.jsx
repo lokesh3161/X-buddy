@@ -1,6 +1,9 @@
 import { useState, useRef } from 'react'
 import { AnimatePresence, motion } from 'framer-motion'
 import Hero from './components/Hero'
+import Workflow from './components/Workflow'
+import WhyXBuddy from './components/WhyXBuddy'
+import PerfectFor from './components/PerfectFor'
 import UploadSection from './components/UploadSection'
 import PrintSettings from './components/PrintSettings'
 import PriceCard from './components/PriceCard'
@@ -80,61 +83,116 @@ export default function App() {
   }
 
   return (
-    <div className="min-h-screen bg-[#FAFAFA]">
-      {/* Nav */}
-      <nav className="fixed top-0 left-0 right-0 z-30 flex items-center justify-between px-6 py-4 border-b border-orange-100 bg-white/90 backdrop-blur-md shadow-sm">
-        <button onClick={handleReset} className="flex items-center gap-2">
-          <div className="w-8 h-8 rounded-lg bg-[#F78C25] flex items-center justify-center">
-            <span className="text-white font-bold text-sm">X</span>
-          </div>
-          <span className="text-[#222222] font-bold text-lg">X Buddy</span>
-        </button>
+    <div className="min-h-screen bg-white text-slate-900 selection:bg-orange-100 selection:text-[#F7931E]">
+      {/* Navigation */}
+      <nav className="fixed top-0 left-0 right-0 z-50 glass-nav transition-all duration-300">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 py-3.5 flex items-center justify-between">
+          <button onClick={handleReset} className="flex items-center gap-2.5 group text-left">
+            <div className="w-9 h-9 rounded-xl bg-gradient-to-tr from-[#F7931E] to-amber-400 flex items-center justify-center shadow-md shadow-orange-500/20 group-hover:scale-105 transition-transform">
+              <span className="text-white font-extrabold text-base tracking-wider">X</span>
+            </div>
+            <div className="flex flex-col">
+              <span className="text-slate-900 font-extrabold text-lg leading-none tracking-tight group-hover:text-[#F7931E] transition-colors">
+                X Buddy
+              </span>
+              <span className="text-[10px] font-semibold text-slate-400 tracking-wider uppercase">
+                Smart Kiosk Platform
+              </span>
+            </div>
+          </button>
 
-        {step === STEP.HERO ? (
-          <div className="hidden md:flex items-center gap-6 text-xs text-gray-500">
-            <a href="#academic-toolkit" className="hover:text-[#F78C25] transition-colors">Academic Toolkit</a>
-            <button onClick={() => setStep(STEP.RESUME)} className="hover:text-[#F78C25] transition-colors">
-              Resume Builder
-            </button>
+          {step === STEP.HERO ? (
+            <div className="flex items-center gap-6">
+              <div className="hidden md:flex items-center gap-6 text-xs font-semibold text-slate-600">
+                <a href="#how-it-works" className="hover:text-[#F7931E] transition-colors">How It Works</a>
+                <a href="#why-x-buddy" className="hover:text-[#F7931E] transition-colors">Why X Buddy</a>
+                <a href="#perfect-for" className="hover:text-[#F7931E] transition-colors">Who Is It For</a>
+                <a href="#academic-toolkit" className="hover:text-[#F7931E] transition-colors">Academic Toolkit</a>
+                <button onClick={() => setStep(STEP.RESUME)} className="hover:text-[#F7931E] transition-colors">
+                  Resume Builder
+                </button>
+              </div>
+              <button
+                onClick={() => setStep(STEP.UPLOAD)}
+                className="px-5 py-2 bg-gradient-to-r from-[#F7931E] to-[#FF6B00] hover:from-[#FF9C26] hover:to-[#EB740A] text-white rounded-xl font-bold text-xs shadow-md shadow-orange-500/20 hover:shadow-lg hover:shadow-orange-500/30 hover:-translate-y-0.5 transition-all"
+              >
+                Print Now →
+              </button>
+            </div>
+          ) : step === STEP.RESUME ? (
             <button
-              onClick={() => setStep(STEP.UPLOAD)}
-              className="px-4 py-1.5 bg-[#F78C25] hover:bg-[#e07010] text-white rounded-lg font-semibold transition-all"
+              onClick={handleReset}
+              className="px-4 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-lg text-xs font-semibold transition-colors"
             >
-              Print Now
+              ← Back to Home
             </button>
-          </div>
-        ) : step === STEP.RESUME ? null : (
-          <div className="flex items-center gap-2 text-xs text-gray-400">
-            {['Upload', 'Settings', 'Pay & Print'].map((label, i) => {
-              const stepKeys = [STEP.UPLOAD, STEP.SETTINGS, STEP.PRINTING]
-              const isPast   = step === STEP.PRINTING && i < 2
-              const isActive = step === stepKeys[i]
-              return (
-                <div key={label} className="flex items-center gap-2">
-                  <span className={`${isPast ? 'text-green-500' : isActive ? 'text-[#F78C25]' : 'text-gray-400'} font-medium`}>
-                    {isPast ? '✓' : `${i + 1}.`} {label}
-                  </span>
-                  {i < 2 && <span className="text-gray-300">›</span>}
-                </div>
-              )
-            })}
-          </div>
-        )}
+          ) : (
+            <div className="flex items-center gap-3 text-xs font-semibold">
+              {['Upload', 'Settings', 'Pay & Print'].map((label, i) => {
+                const stepKeys = [STEP.UPLOAD, STEP.SETTINGS, STEP.PRINTING]
+                const isPast   = step === STEP.PRINTING && i < 2
+                const isActive = step === stepKeys[i]
+                return (
+                  <div key={label} className="flex items-center gap-2">
+                    <span className={`px-2.5 py-1 rounded-lg ${isPast ? 'bg-emerald-50 text-emerald-600 border border-emerald-200' : isActive ? 'bg-orange-50 text-[#F7931E] border border-orange-200' : 'text-slate-400'}`}>
+                      {isPast ? '✓' : `${i + 1}.`} {label}
+                    </span>
+                    {i < 2 && <span className="text-slate-300">›</span>}
+                  </div>
+                )
+              })}
+            </div>
+          )}
+        </div>
       </nav>
 
-      {/* Main */}
+      {/* Main Content */}
       <main className="pt-16">
         <AnimatePresence mode="wait">
           {step === STEP.HERO && (
             <motion.div key="hero" exit={{ opacity: 0, y: -20 }} transition={{ duration: 0.3 }}>
+              {/* Hero Section */}
               <Hero onGetStarted={() => setStep(STEP.UPLOAD)} onResumeBuilder={() => setStep(STEP.RESUME)} />
-              <div className="border-t border-orange-100" />
-              <div id="academic-toolkit">
+              
+              {/* Timeline Section */}
+              <div id="how-it-works">
+                <Workflow onStartPrint={() => setStep(STEP.UPLOAD)} />
+              </div>
+
+              {/* Feature Grid */}
+              <div id="why-x-buddy">
+                <WhyXBuddy />
+              </div>
+
+              {/* Perfect For Section */}
+              <div id="perfect-for">
+                <PerfectFor />
+              </div>
+
+              {/* Academic Toolkit Section */}
+              <div id="academic-toolkit" className="border-t border-orange-100/60 bg-gradient-to-b from-white via-orange-50/20 to-white">
                 <AcademicToolkit onPrint={handleExternalPrint} />
               </div>
-              <div className="border-t border-orange-100 py-8 text-center">
-                <p className="text-gray-400 text-xs">X Buddy — Smart Campus Utility Platform</p>
-              </div>
+
+              {/* Premium Footer */}
+              <footer className="border-t border-orange-100 bg-white py-12 px-4">
+                <div className="max-w-7xl mx-auto flex flex-col md:flex-row items-center justify-between gap-6 text-center md:text-left">
+                  <div className="flex items-center gap-3">
+                    <div className="w-8 h-8 rounded-lg bg-[#F7931E] flex items-center justify-center text-white font-bold text-sm">
+                      X
+                    </div>
+                    <div>
+                      <p className="text-slate-900 font-bold text-sm">X Buddy</p>
+                      <p className="text-slate-400 text-xs">Next-Generation Smart Campus Infrastructure Platform</p>
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-2 text-xs text-slate-400">
+                    <span>Powered by <strong className="text-slate-700 font-semibold">NextGen Labs</strong></span>
+                    <span className="w-1 h-1 rounded-full bg-[#F7931E]" />
+                    <span>© {new Date().getFullYear()} All Rights Reserved.</span>
+                  </div>
+                </div>
+              </footer>
             </motion.div>
           )}
 
