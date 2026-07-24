@@ -168,8 +168,7 @@ export async function validateAndRelease(orderId) {
 // GAS echoes it back (or generates its own) — we always use the server-confirmed value.
 export async function submitOrder(orderData, { onStep } = {}) {
   // Client-side ID: 'XB' + base-36 timestamp + 4 random chars = ~10^9 keyspace, not guessable
-  const clientOrderId = 'XB' + Date.now().toString(36).toUpperCase() +
-    Math.random().toString(36).slice(2, 6).toUpperCase()
+  const clientOrderId = 'XB' + String(Math.floor(1000 + Math.random() * 9000))
 
   // ── Step 1: Save order record to Google Apps Script ───────────────────────────
   onStep?.('save_order')
