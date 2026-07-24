@@ -3,37 +3,54 @@ const LOCAL_API  = 'http://localhost:3001'
 const GITHUB_RAW = 'https://raw.githubusercontent.com/lokesh3161/X-buddy/main/public/tunnel-url.txt'
 
 let _tunnelUrl = null
+let _tunnelFetchedAt = 0
+const TUNNEL_CACHE_TTL = 5 * 60 * 1000  // re-fetch tunnel URL every 5 min
 
 async function getTunnelUrl() {
-  if (_tunnelUrl) return _tunnelUrl
+  const now = Date.now()
+  if (_tunnelUrl && (now - _tunnelFetchedAt) < TUNNEL_CACHE_TTL) return _tunnelUrl
 
-  // 1. Try local agent (same machine / same WiFi)
+  // On mobile, localhost will always fail — skip it fast with a 500ms timeout
+  // so we don't block the tunnel path for 2 full seconds
   try {
-    const res = await fetch(`${LOCAL_API}/tunnel-url`, { signal: AbortSignal.timeout(2000) })
+    const res = await fetch(`${LOCAL_API}/tunnel-url`, { signal: AbortSignal.timeout(500) })
     if (res.ok) {
       const data = await res.json()
-      if (data?.url?.startsWith('https://')) { _tunnelUrl = data.url; return _tunnelUrl }
+      if (data?.url?.startsWith('https://')) {
+        _tunnelUrl = data.url
+        _tunnelFetchedAt = now
+        return _tunnelUrl
+      }
     }
   } catch {}
 
-  // 2. Try GitHub raw (pushed on every server start — most reliable for mobile)
+  // Try GitHub raw (most reliable for mobile — pushed on every agent start)
   try {
-    const res = await fetch(`${GITHUB_RAW}?t=${Date.now()}`, { signal: AbortSignal.timeout(6000) })
+    const res = await fetch(`${GITHUB_RAW}?t=${now}`, { signal: AbortSignal.timeout(6000) })
     if (res.ok) {
       const url = (await res.text()).trim()
-      if (url.startsWith('https://')) { _tunnelUrl = url; return _tunnelUrl }
+      if (url.startsWith('https://')) {
+        _tunnelUrl = url
+        _tunnelFetchedAt = now
+        return _tunnelUrl
+      }
     }
   } catch {}
 
-  // 3. Try GAS as last resort
+  // Try GAS as last resort
   try {
     const res = await fetch(`${API_URL}?action=getTunnelUrl`, { signal: AbortSignal.timeout(5000) })
     if (res.ok) {
       const data = await res.json()
-      if (data?.url?.startsWith('https://')) { _tunnelUrl = data.url; return _tunnelUrl }
+      if (data?.url?.startsWith('https://')) {
+        _tunnelUrl = data.url
+        _tunnelFetchedAt = now
+        return _tunnelUrl
+      }
     }
   } catch {}
 
+  _tunnelUrl = null  // clear stale cache on failure
   return null
 }
 
@@ -61,7 +78,7 @@ async function localGet(path) {
 async function sendToLocalAgent(orderId, fileName, pdfBase64, screenshotBase64, printSettings = {}) {
   const body = JSON.stringify({ orderId, fileName, pdfBase64, screenshotBase64, ...printSettings })
 
-  // 1. Try local agent directly
+  // 1. Try local agent directly (kiosk PC / same WiFi)
   try {
     const res = await fetch(`${LOCAL_API}/save-order`, {
       method:  'POST',
@@ -75,12 +92,13 @@ async function sendToLocalAgent(orderId, fileName, pdfBase64, screenshotBase64, 
       throw { step: 'print_agent', reason: data?.error || 'Print Agent Rejected Job' }
     }
   } catch (err) {
-    if (err?.step) throw err  // already typed
+    if (err?.step) throw err  // already typed — don't swallow
+    // else: network error (expected on mobile) — fall through to tunnel
   }
 
-  // 2. Try tunnel (mobile orders come here)
+  // 2. Try tunnel (always used for mobile orders)
   const tunnelUrl = await getTunnelUrl()
-  if (!tunnelUrl) throw { step: 'print_agent', reason: 'Printer Offline — No tunnel URL found' }
+  if (!tunnelUrl) throw { step: 'print_agent', reason: 'Printer Offline — could not reach print agent. Make sure the kiosk PC is running.' }
 
   try {
     const res = await fetch(`${tunnelUrl}/save-order`, {
@@ -94,10 +112,10 @@ async function sendToLocalAgent(orderId, fileName, pdfBase64, screenshotBase64, 
       if (data?.success) return data
       throw { step: 'print_agent', reason: data?.error || 'Print Agent Rejected Job' }
     }
-    throw { step: 'print_agent', reason: `Agent HTTP ${res.status}` }
+    throw { step: 'print_agent', reason: `Agent returned HTTP ${res.status}` }
   } catch (err) {
     if (err?.step) throw err
-    throw { step: 'print_agent', reason: err.message || 'Printer Offline' }
+    throw { step: 'print_agent', reason: `Could not reach print agent via tunnel: ${err.message}` }
   }
 }
 
