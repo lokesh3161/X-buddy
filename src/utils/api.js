@@ -103,7 +103,10 @@ async function sendToLocalAgent(orderId, fileName, pdfBase64, screenshotBase64, 
   try {
     const res = await fetch(`${tunnelUrl}/save-order`, {
       method:  'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: {
+        'Content-Type': 'application/json',
+        'cf-access-client-id': 'bypass',   // bypass Cloudflare interstitial
+      },
       body,
       signal:  AbortSignal.timeout(30000),
     })
