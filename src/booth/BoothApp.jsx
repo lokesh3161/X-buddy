@@ -124,7 +124,7 @@ function PinLogin({ onSuccess }) {
 
 // ── Release Panel ─────────────────────────────────────────────────────────────
 function ReleasePrint({ onLock }) {
-  const [orderId,  setOrderId]  = useState('')
+  const [orderId,  setOrderId]  = useState('XB')
   const [loading,  setLoading]  = useState(false)
   const [result,   setResult]   = useState(null)
   const [lastPrint, setLastPrint] = useState(null)
@@ -211,9 +211,14 @@ function ReleasePrint({ onLock }) {
               ref={inputRef}
               type="text"
               value={orderId}
-              onChange={(e) => { setOrderId(e.target.value.toUpperCase()); setResult(null) }}
+              onChange={(e) => {
+                const val = e.target.value.toUpperCase()
+                if (!val.startsWith('XB')) { setOrderId('XB'); return }
+                setOrderId(val)
+                setResult(null)
+              }}
               placeholder="XB0000"
-              maxLength={8}
+              maxLength={7}
               className="w-full bg-[#FFF8F2] border-2 border-orange-200 rounded-2xl px-6 py-5 text-[#222222] text-4xl font-mono tracking-[0.3em] placeholder-gray-300 focus:outline-none focus:border-[#F78C25] focus:ring-2 focus:ring-orange-100 transition-colors text-center uppercase"
             />
 

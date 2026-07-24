@@ -163,7 +163,7 @@ export async function validateAndRelease(orderId) {
 
 export async function submitOrder(orderData) {
   // Generate orderId here — GAS is a dumb sheet writer, not an ID authority
-  const orderId = 'XB' + Date.now().toString().slice(-6)
+  const orderId = 'XB' + Date.now().toString().slice(-4)
 
   // ── Step 1: Send PDF to local print agent first (heaviest op, fail fast) ──
   const agentOk = await sendToLocalAgent(
