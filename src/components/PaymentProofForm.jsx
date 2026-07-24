@@ -1,104 +1,146 @@
-import { useState, useRef } from 'react'
+import { useState, useRef, useEffect, useCallback } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { fileToBase64 } from '../utils/fileToBase64'
 import { submitOrder } from '../utils/api'
+import OrderProgress from './OrderProgress'
 
 const inputCls = 'w-full bg-[#FAFAFA] border border-orange-200 rounded-xl px-4 py-2.5 text-[#222222] text-sm placeholder:text-gray-400 focus:outline-none focus:border-[#F78C25] focus:ring-1 focus:ring-orange-200 transition-all'
 
-const SUBMIT_STAGES = [
-  'Reading payment screenshot…',
-  'Encoding document…',
-  'Saving order to server…',
-  'Connecting to print agent…',
-  'Confirming order…',
-]
+const PENDING_STATUSES = { upload_file: 'pending', save_order: 'pending', print_agent: 'pending', confirmed: 'pending' }
 
 export default function PaymentProofForm({ orderMeta, onSuccess, onClose }) {
   const [phone,         setPhone]         = useState('')
   const [transactionId, setTransactionId] = useState('')
   const [screenshot,    setScreenshot]    = useState(null)
   const [preview,       setPreview]       = useState(null)
-  const [loading,       setLoading]       = useState(false)
-  const [stageIndex,    setStageIndex]    = useState(0)
-  const [error,         setError]         = useState('')
   const [fieldError,    setFieldError]    = useState('')
+
+  // Progress state
+  const [processing,    setProcessing]    = useState(false)
+  const [stepStatuses,  setStepStatuses]  = useState(PENDING_STATUSES)
+  const [failedStep,    setFailedStep]    = useState(null)   // step id
+  const [errorReason,   setErrorReason]   = useState('')
+  const [result,        setResult]        = useState(null)   // { orderId, message }
+
+  // Cached base64 values so retry can skip re-encoding
+  const cachedRef = useRef({ screenshotBase64: null, pdfBase64: null })
+
   const fileInputRef = useRef()
+
+  // beforeunload guard while processing
+  useEffect(() => {
+    if (!processing) return
+    const handler = (e) => { e.preventDefault(); e.returnValue = '' }
+    window.addEventListener('beforeunload', handler)
+    return () => window.removeEventListener('beforeunload', handler)
+  }, [processing])
+
+  function setStep(id, status) {
+    setStepStatuses(prev => ({ ...prev, [id]: status }))
+  }
 
   function handleScreenshot(file) {
     if (!file) return
-    if (!file.type.startsWith('image/')) {
-      setFieldError('Please upload an image file (JPG, PNG, etc.)')
-      return
-    }
+    if (!file.type.startsWith('image/')) { setFieldError('Please upload an image file (JPG, PNG, etc.)'); return }
     setScreenshot(file)
     setPreview(URL.createObjectURL(file))
+    cachedRef.current.screenshotBase64 = null  // invalidate cache on new file
     setFieldError('')
-    setError('')
   }
 
-  async function handleSubmit(e) {
-    e.preventDefault()
-    setError('')
-    setFieldError('')
+  // Core submission logic — retryFromStep lets us resume from a failed step
+  const runSubmit = useCallback(async (retryFromStep = null) => {
+    setProcessing(true)
+    setFailedStep(null)
+    setErrorReason('')
 
+    const cache = cachedRef.current
+
+    try {
+      // ── Step: upload_file (encode both files) ──────────────────────────────
+      if (!retryFromStep || retryFromStep === 'upload_file') {
+        setStep('upload_file', 'active')
+        try {
+          if (!cache.screenshotBase64) cache.screenshotBase64 = await fileToBase64(screenshot)
+          if (!cache.pdfBase64)        cache.pdfBase64        = await fileToBase64(orderMeta.pdfFile)
+        } catch (err) {
+          throw { step: 'upload_file', reason: err.message || 'Failed to read file' }
+        }
+        setStep('upload_file', 'done')
+      }
+
+      // ── Steps: save_order + print_agent (handled inside submitOrder) ───────
+      const res = await submitOrder(
+        {
+          name:            phone.trim(),
+          fileName:        orderMeta.fileName,
+          totalPages:      orderMeta.totalPages,
+          copies:          orderMeta.copies,
+          printType:       orderMeta.printType,
+          printSide:       orderMeta.printSide,
+          amount:          orderMeta.amount,
+          transactionId:   transactionId.trim(),
+          screenshotBase64: cache.screenshotBase64,
+          pdfBase64:        cache.pdfBase64,
+        },
+        {
+          onStep: (stepId) => {
+            // Mark previous step done when next one starts
+            if (stepId === 'print_agent') setStep('save_order', 'done')
+            setStep(stepId, 'active')
+          },
+        }
+      )
+
+      // Mark last two steps done
+      setStep('print_agent', 'done')
+      setStep('confirmed', 'done')
+      setResult({ orderId: res.orderId, message: res.message })
+      onSuccess(res.orderId)
+
+    } catch (err) {
+      const stepId = err?.step || 'save_order'
+      const reason = err?.reason || err?.message || 'Unknown Error'
+      setStep(stepId, 'error')
+      setFailedStep(stepId)
+      setErrorReason(reason)
+    } finally {
+      setProcessing(false)
+    }
+  }, [phone, transactionId, screenshot, orderMeta, onSuccess])
+
+  function handleSubmit(e) {
+    e.preventDefault()
     if (!phone.trim())         return setFieldError('Please enter your phone number.')
     if (!transactionId.trim()) return setFieldError('Please enter the Transaction ID.')
     if (!screenshot)           return setFieldError('Please upload your payment screenshot.')
-
-    setLoading(true)
-    setStageIndex(0)
-
-    try {
-      setStageIndex(0)
-      const screenshotBase64 = await fileToBase64(screenshot)
-
-      setStageIndex(1)
-      const pdfBase64 = await fileToBase64(orderMeta.pdfFile)
-
-      setStageIndex(2)
-      // Small delay so user sees the stage label before the network call
-      await tick()
-
-      const result = await submitOrder({
-        name:          phone.trim(),
-        fileName:      orderMeta.fileName,
-        totalPages:    orderMeta.totalPages,
-        copies:        orderMeta.copies,
-        printType:     orderMeta.printType,
-        printSide:     orderMeta.printSide,
-        amount:        orderMeta.amount,
-        transactionId: transactionId.trim(),
-        screenshotBase64,
-        pdfBase64,
-      })
-
-      setStageIndex(4)
-
-      // ── STRICT CHECK: never call onSuccess unless backend confirmed ──
-      if (!result.success) {
-        setError(result.error || 'Order failed. Please try again.')
-        return
-      }
-
-      if (!result.orderId) {
-        setError('Server did not return an Order ID. Please contact the shopkeeper.')
-        return
-      }
-
-      onSuccess(result.orderId)
-
-    } catch (err) {
-      // Network-level or unexpected JS error — never fake success
-      setError(
-        err?.message?.includes('fetch')
-          ? 'Network connection lost. Please check your internet and try again.'
-          : `Unexpected error: ${err?.message || 'Unknown error'}. Please try again.`
-      )
-    } finally {
-      setLoading(false)
-      setStageIndex(0)
-    }
+    setStepStatuses(PENDING_STATUSES)
+    runSubmit(null)
   }
+
+  function handleRetry() {
+    // Reset only the failed step and everything after it, keep earlier done steps
+    const failIdx = ['upload_file', 'save_order', 'print_agent', 'confirmed'].indexOf(failedStep)
+    setStepStatuses(prev => {
+      const next = { ...prev }
+      ;['upload_file', 'save_order', 'print_agent', 'confirmed'].forEach((id, i) => {
+        if (i >= failIdx) next[id] = 'pending'
+      })
+      return next
+    })
+    setFailedStep(null)
+    setErrorReason('')
+    runSubmit(failedStep)
+  }
+
+  function handleCancel() {
+    setProcessing(false)
+    setStepStatuses(PENDING_STATUSES)
+    setFailedStep(null)
+    setErrorReason('')
+  }
+
+  const showProgress = processing || failedStep || result
 
   return (
     <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} className="mt-4 border-t border-orange-100 pt-4">
@@ -112,7 +154,7 @@ export default function PaymentProofForm({ orderMeta, onSuccess, onClose }) {
             onChange={(e) => { setPhone(e.target.value); setFieldError('') }}
             placeholder="Enter your phone number"
             className={inputCls}
-            disabled={loading}
+            disabled={processing}
           />
         </div>
 
@@ -123,31 +165,31 @@ export default function PaymentProofForm({ orderMeta, onSuccess, onClose }) {
             onChange={(e) => { setTransactionId(e.target.value); setFieldError('') }}
             placeholder="e.g. 4358XXXXXXXX"
             className={inputCls + ' font-mono'}
-            disabled={loading}
+            disabled={processing}
           />
         </div>
 
         <div>
           <label className="text-gray-500 text-xs mb-1 block">Payment Screenshot</label>
           <div
-            onClick={() => !loading && fileInputRef.current.click()}
+            onClick={() => !processing && fileInputRef.current.click()}
             className={`border-2 border-dashed rounded-xl p-4 text-center transition-all ${
-              loading ? 'opacity-60 cursor-not-allowed' :
-              preview ? 'border-orange-300 bg-orange-50 cursor-pointer' :
-              'border-orange-200 hover:border-[#F78C25] hover:bg-orange-50 cursor-pointer'
+              processing ? 'opacity-60 cursor-not-allowed' :
+              preview    ? 'border-orange-300 bg-orange-50 cursor-pointer' :
+                           'border-orange-200 hover:border-[#F78C25] hover:bg-orange-50 cursor-pointer'
             }`}
           >
             <input
               ref={fileInputRef} type="file" accept="image/*" className="hidden"
               onChange={(e) => handleScreenshot(e.target.files[0])}
-              disabled={loading}
+              disabled={processing}
             />
             <AnimatePresence mode="wait">
               {preview ? (
                 <motion.div key="preview" initial={{ opacity: 0 }} animate={{ opacity: 1 }}>
                   <img src={preview} alt="Payment screenshot" className="h-24 object-contain mx-auto rounded-lg mb-2" />
                   <p className="text-[#F78C25] text-xs">{screenshot.name}</p>
-                  {!loading && <p className="text-gray-400 text-xs mt-0.5">Click to change</p>}
+                  {!processing && <p className="text-gray-400 text-xs mt-0.5">Click to change</p>}
                 </motion.div>
               ) : (
                 <motion.div key="empty" initial={{ opacity: 0 }} animate={{ opacity: 1 }}>
@@ -164,7 +206,6 @@ export default function PaymentProofForm({ orderMeta, onSuccess, onClose }) {
           </div>
         </div>
 
-        {/* Field validation error */}
         <AnimatePresence>
           {fieldError && (
             <motion.p initial={{ opacity: 0, y: -4 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }}
@@ -175,49 +216,32 @@ export default function PaymentProofForm({ orderMeta, onSuccess, onClose }) {
           )}
         </AnimatePresence>
 
-        {/* Backend / network error — shown with retry affordance */}
+        {/* Progress card — shown only while processing or after terminal state */}
         <AnimatePresence>
-          {error && !loading && (
-            <motion.div
-              initial={{ opacity: 0, y: -4 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }}
-              className="bg-red-50 border border-red-200 rounded-xl px-4 py-3"
-            >
-              <div className="flex items-start gap-2">
-                <span className="text-red-500 text-base mt-0.5">❌</span>
-                <div className="flex-1">
-                  <p className="text-red-600 font-semibold text-xs">Order Failed</p>
-                  <p className="text-red-500 text-xs mt-0.5">{error}</p>
-                </div>
-              </div>
-              <p className="text-gray-400 text-xs mt-2">
-                Your file and form data are preserved. Fix the issue and tap <strong>Retry</strong>.
-              </p>
-            </motion.div>
+          {showProgress && (
+            <OrderProgress
+              stepStatuses={stepStatuses}
+              failedStep={failedStep}
+              errorReason={errorReason}
+              result={result}
+              onRetry={handleRetry}
+              onCancel={handleCancel}
+            />
           )}
         </AnimatePresence>
 
-        {/* Submit / Retry button */}
-        <motion.button
-          type="submit"
-          disabled={loading}
-          whileHover={{ scale: loading ? 1 : 1.02 }}
-          whileTap={{ scale: loading ? 1 : 0.97 }}
-          className="w-full py-3 bg-[#F78C25] hover:bg-[#e07010] disabled:bg-orange-200 disabled:cursor-not-allowed text-white font-bold text-sm rounded-xl transition-all duration-200 flex items-center justify-center gap-2"
-        >
-          {loading ? (
-            <>
-              <div className="w-4 h-4 border-2 border-white/40 border-t-white rounded-full animate-spin" />
-              <span>{SUBMIT_STAGES[stageIndex]}</span>
-            </>
-          ) : error ? (
-            '↺ Retry Order'
-          ) : (
-            '✓ Confirm & Submit Order'
-          )}
-        </motion.button>
+        {/* Submit button — hidden once progress card takes over */}
+        {!showProgress && (
+          <motion.button
+            type="submit"
+            whileHover={{ scale: 1.02 }}
+            whileTap={{ scale: 0.97 }}
+            className="w-full py-3 bg-[#F78C25] hover:bg-[#e07010] text-white font-bold text-sm rounded-xl transition-all duration-200"
+          >
+            ✓ Confirm &amp; Submit Order
+          </motion.button>
+        )}
       </form>
     </motion.div>
   )
 }
-
-function tick() { return new Promise(r => setTimeout(r, 80)) }

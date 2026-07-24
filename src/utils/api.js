@@ -56,7 +56,8 @@ async function localGet(path) {
   }
 }
 
-// Send PDF + screenshot — tries local first, then tunnel (direct POST, works on mobile)
+// Send PDF + screenshot — tries local first, then tunnel.
+// Returns the agent's response data on success, throws { step, reason } on failure.
 async function sendToLocalAgent(orderId, fileName, pdfBase64, screenshotBase64) {
   const body = JSON.stringify({ orderId, fileName, pdfBase64, screenshotBase64 })
 
@@ -70,33 +71,34 @@ async function sendToLocalAgent(orderId, fileName, pdfBase64, screenshotBase64) 
     })
     if (res.ok) {
       const data = await res.json()
-      if (data?.success) { console.log('[api] PDF saved via local'); return true }
+      if (data?.success) return data
+      throw { step: 'print_agent', reason: data?.error || 'Print Agent Rejected Job' }
     }
-  } catch {}
+  } catch (err) {
+    if (err?.step) throw err  // already typed
+  }
 
   // 2. Try tunnel (mobile orders come here)
   const tunnelUrl = await getTunnelUrl()
-  if (tunnelUrl) {
-    try {
-      const res = await fetch(`${tunnelUrl}/save-order`, {
-        method:  'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body,
-        signal:  AbortSignal.timeout(30000),
-      })
-      if (res.ok) {
-        const data = await res.json()
-        if (data?.success) { console.log('[api] PDF saved via tunnel:', tunnelUrl); return true }
-      }
-    } catch (err) {
-      console.warn('[api] Tunnel POST failed:', err.message)
-    }
-  } else {
-    console.warn('[api] No tunnel URL found')
-  }
+  if (!tunnelUrl) throw { step: 'print_agent', reason: 'Printer Offline — No tunnel URL found' }
 
-  console.warn('[api] Could not reach print agent — PDF not saved locally')
-  return false
+  try {
+    const res = await fetch(`${tunnelUrl}/save-order`, {
+      method:  'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body,
+      signal:  AbortSignal.timeout(30000),
+    })
+    if (res.ok) {
+      const data = await res.json()
+      if (data?.success) return data
+      throw { step: 'print_agent', reason: data?.error || 'Print Agent Rejected Job' }
+    }
+    throw { step: 'print_agent', reason: `Agent HTTP ${res.status}` }
+  } catch (err) {
+    if (err?.step) throw err
+    throw { step: 'print_agent', reason: err.message || 'Printer Offline' }
+  }
 }
 
 export async function getOrderStatus(orderId) {
@@ -161,32 +163,16 @@ export async function validateAndRelease(orderId) {
   return { success: false, error: 'Could not connect to print agent. Is it running?' }
 }
 
-export async function submitOrder(orderData) {
-  // Generate orderId here — GAS is a dumb sheet writer, not an ID authority
-  const orderId = 'XB' + Date.now().toString().slice(-4)
-
-  // ── Step 1: Send PDF to local print agent first (heaviest op, fail fast) ──
-  const agentOk = await sendToLocalAgent(
-    orderId,
-    orderData.fileName,
-    orderData.pdfBase64 || '',
-    orderData.screenshotBase64 || ''
-  )
-
-  if (!agentOk) {
-    return {
-      success: false,
-      error: 'Cannot connect to Print Agent. Make sure the X Buddy desktop agent is running on the kiosk PC.',
-    }
-  }
-
-  // ── Step 2: Save order record to Google Apps Script ───────────────────────
-  let gasResult = null
+// submitOrder — sequential, throws { step, reason } on any failure.
+// orderId comes from GAS response, not client-side.
+export async function submitOrder(orderData, { onStep } = {}) {
+  // ── Step 1: Save order record to Google Apps Script (gets us the orderId) ──
+  onStep?.('save_order')
+  let gasResult
   try {
     const res = await fetch(
       `${API_URL}?${new URLSearchParams({
         action:        'saveOrder',
-        orderId,
         name:          orderData.name,
         fileName:      orderData.fileName,
         totalPages:    String(orderData.totalPages),
@@ -198,22 +184,33 @@ export async function submitOrder(orderData) {
       }).toString()}`,
       { signal: AbortSignal.timeout(20000) }
     )
-    if (!res.ok) throw new Error(`GAS HTTP ${res.status}`)
+    if (!res.ok) throw { step: 'save_order', reason: `Server Error (HTTP ${res.status})` }
     gasResult = await res.json()
   } catch (err) {
-    const msg = err.name === 'TimeoutError'
-      ? 'Order record timed out saving to sheet. Please inform the shopkeeper with Order ID: ' + orderId
-      : `Unable to save order record: ${err.message}`
-    return { success: false, error: msg }
+    if (err?.step) throw err
+    throw { step: 'save_order', reason: err.name === 'TimeoutError' ? 'Request Timed Out' : (err.message || 'Network Error') }
   }
 
   if (!gasResult?.success) {
-    return {
-      success: false,
-      error: gasResult?.error || 'Google Apps Script returned an error. Order not saved.',
-    }
+    throw { step: 'save_order', reason: gasResult?.error || 'Unable to Save Order' }
   }
 
-  // ── Both steps succeeded ──────────────────────────────────────────────────
-  return { success: true, orderId }
+  const orderId = gasResult.orderId
+  if (!orderId) throw { step: 'save_order', reason: 'Server did not return an Order ID' }
+
+  // ── Step 2: Send PDF to local print agent ─────────────────────────────────
+  onStep?.('print_agent')
+  const agentData = await sendToLocalAgent(
+    orderId,
+    orderData.fileName,
+    orderData.pdfBase64 || '',
+    orderData.screenshotBase64 || ''
+  )
+
+  return {
+    success:     true,
+    orderId,
+    agentStatus: agentData?.status ?? null,   // whatever the agent actually returns
+    message:     agentData?.message ?? null,
+  }
 }
