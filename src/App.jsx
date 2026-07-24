@@ -16,16 +16,27 @@ pdfjsLib.GlobalWorkerOptions.workerSrc = new URL(
   'pdfjs-dist/build/pdf.worker.min.mjs',
   import.meta.url
 ).toString()
+import { processFile } from './utils/fileProcessor'
 
 import ResumeBuilder from './resume-builder/ResumeBuilder'
 
 const STEP = { HERO: 'hero', UPLOAD: 'upload', SETTINGS: 'settings', PRINTING: 'printing', RESUME: 'resume' }
-const DEFAULT_SETTINGS = { colorMode: 'bw', sideMode: 'single', copies: 1 }
+const DEFAULT_SETTINGS = {
+  colorMode: 'bw', sideMode: 'single', copies: 1,
+  pageSize: 'A4', orientation: 'portrait', margins: 'normal',
+  pageRange: 'all', customPages: '', imageFit: 'fit',
+}
 
 async function getPageCountFromFile(file) {
-  const buffer = await file.arrayBuffer()
-  const pdf    = await pdfjsLib.getDocument({ data: buffer }).promise
-  return pdf.numPages
+  try {
+    const result = await processFile(file)
+    return result.totalPages
+  } catch {
+    // fallback for PDF
+    const buffer = await file.arrayBuffer()
+    const pdf = await pdfjsLib.getDocument({ data: buffer }).promise
+    return pdf.numPages
+  }
 }
 
 export default function App() {
@@ -41,7 +52,17 @@ export default function App() {
     : 0
 
   const orderMeta = fileInfo
-    ? { fileName: fileInfo.name, totalPages: fileInfo.totalPages, copies: settings.copies, printType: settings.colorMode === 'color' ? 'Color' : 'B&W', printSide: settings.sideMode === 'double' ? 'Double' : 'Single', amount: total, pdfFile: fileInfo.file }
+    ? {
+        fileName: fileInfo.name, totalPages: fileInfo.totalPages,
+        copies: settings.copies,
+        printType: settings.colorMode === 'color' ? 'Color' : 'B&W',
+        printSide: settings.sideMode === 'double' ? 'Double' : 'Single',
+        pageSize: settings.pageSize, orientation: settings.orientation,
+        margins: settings.margins, pageRange: settings.pageRange,
+        customPages: settings.customPages, imageFit: settings.imageFit,
+        amount: total, pdfFile: fileInfo.file,
+        requiresAgent: fileInfo.requiresAgent || false,
+      }
     : null
 
   async function handleFileReady(info) {
@@ -59,8 +80,8 @@ export default function App() {
     } else {
       file = fileOrUrl
     }
-    const totalPages = await getPageCountFromFile(file)
-    setFileInfo({ file, name: file.name, totalPages })
+    const result = await processFile(file)
+    setFileInfo({ file: result.pdfBlob, originalFile: file, name: file.name, size: '', totalPages: result.totalPages, thumbnail: result.thumbnail, typeInfo: { label: 'PDF', icon: '📄', category: 'document' }, requiresAgent: false })
     setStep(STEP.SETTINGS)
     window.scrollTo({ top: 0, behavior: 'smooth' })
     setTimeout(() => settingsRef.current?.scrollIntoView({ behavior: 'smooth' }), 300)
