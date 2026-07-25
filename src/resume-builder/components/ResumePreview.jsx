@@ -67,45 +67,49 @@ export default function ResumePreview({ onPrint }) {
   }
 
   return (
-    <div className="flex flex-col h-full">
+    <div className="flex flex-col h-full bg-[#FAFAFA]">
       {/* Toolbar */}
-      <div className="flex items-center justify-between px-4 py-2.5 border-b border-white/5 flex-shrink-0 bg-[#0a0a0f]">
-        <div className="flex items-center gap-2">
-          <div className="flex items-center gap-1 mr-2">
-            <div className="w-1.5 h-1.5 rounded-full bg-green-500" />
-            <span className="text-gray-600 text-xs">Click on resume to edit</span>
+      <div className="flex flex-wrap items-center justify-between gap-2 px-4 py-2.5 border-b border-orange-100 flex-shrink-0 bg-white/90 backdrop-blur-md shadow-xs">
+        <div className="flex items-center gap-2 flex-wrap">
+          <div className="flex items-center gap-1.5 mr-2">
+            <div className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
+            <span className="text-slate-500 text-xs font-medium">Click on resume to edit</span>
           </div>
-          <span className="text-gray-700 text-xs mx-1">|</span>
-          <span className="text-gray-600 text-xs">Font</span>
+          <span className="text-orange-200 text-xs mx-0.5">|</span>
+          <span className="text-slate-600 text-xs font-medium">Font</span>
           <button
             onClick={() => setFontScale(s => Math.max(0.7, +(s - 0.05).toFixed(2)))}
-            className="w-6 h-6 rounded bg-white/5 hover:bg-white/10 text-gray-400 text-xs flex items-center justify-center transition-all"
+            className="w-6 h-6 rounded-lg bg-orange-50 hover:bg-orange-100 text-[#F78C25] border border-orange-200 text-xs font-bold flex items-center justify-center transition-all"
+            title="Decrease Font Size"
           >A−</button>
-          <span className="text-gray-500 text-xs w-8 text-center">{Math.round(fontScale * 100)}%</span>
+          <span className="text-slate-700 font-semibold text-xs w-8 text-center">{Math.round(fontScale * 100)}%</span>
           <button
             onClick={() => setFontScale(s => Math.min(1.4, +(s + 0.05).toFixed(2)))}
-            className="w-6 h-6 rounded bg-white/5 hover:bg-white/10 text-gray-400 text-xs flex items-center justify-center transition-all"
+            className="w-6 h-6 rounded-lg bg-orange-50 hover:bg-orange-100 text-[#F78C25] border border-orange-200 text-xs font-bold flex items-center justify-center transition-all"
+            title="Increase Font Size"
           >A+</button>
-          <span className="text-gray-700 text-xs mx-1">|</span>
-          <span className="text-gray-600 text-xs">Zoom</span>
+          <span className="text-orange-200 text-xs mx-0.5">|</span>
+          <span className="text-slate-600 text-xs font-medium">Zoom</span>
           <button
             onClick={() => setZoom(z => Math.max(0.4, +(z - 0.1).toFixed(1)))}
-            className="w-6 h-6 rounded bg-white/5 hover:bg-white/10 text-gray-400 text-xs flex items-center justify-center transition-all"
+            className="w-6 h-6 rounded-lg bg-orange-50 hover:bg-orange-100 text-[#F78C25] border border-orange-200 text-xs font-bold flex items-center justify-center transition-all"
+            title="Zoom Out"
           >−</button>
-          <span className="text-gray-500 text-xs w-10 text-center">{Math.round(zoom * 100)}%</span>
+          <span className="text-slate-700 font-semibold text-xs w-10 text-center">{Math.round(zoom * 100)}%</span>
           <button
             onClick={() => setZoom(z => Math.min(1.2, +(z + 0.1).toFixed(1)))}
-            className="w-6 h-6 rounded bg-white/5 hover:bg-white/10 text-gray-400 text-xs flex items-center justify-center transition-all"
+            className="w-6 h-6 rounded-lg bg-orange-50 hover:bg-orange-100 text-[#F78C25] border border-orange-200 text-xs font-bold flex items-center justify-center transition-all"
+            title="Zoom In"
           >+</button>
         </div>
         <div className="flex items-center gap-2">
           <button
             onClick={() => captureAndExport('download')}
             disabled={exporting}
-            className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-white/5 hover:bg-white/10 text-gray-300 text-xs font-medium transition-all disabled:opacity-50"
+            className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-white hover:bg-orange-50 text-[#222222] hover:text-[#F78C25] border border-orange-200 text-xs font-semibold shadow-xs transition-all disabled:opacity-50"
           >
             {exporting
-              ? <div className="w-3.5 h-3.5 border border-gray-500 border-t-gray-200 rounded-full animate-spin" />
+              ? <div className="w-3.5 h-3.5 border-2 border-[#F78C25] border-t-transparent rounded-full animate-spin" />
               : <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="w-3.5 h-3.5"><path strokeLinecap="round" strokeLinejoin="round" d="M3 16.5v2.25A2.25 2.25 0 005.25 21h13.5A2.25 2.25 0 0021 18.75V16.5M16.5 12L12 16.5m0 0L7.5 12m4.5 4.5V3" /></svg>
             }
             {exporting ? 'Exporting...' : 'Download PDF'}
@@ -113,7 +117,7 @@ export default function ResumePreview({ onPrint }) {
           <button
             onClick={() => captureAndExport('print')}
             disabled={exporting}
-            className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-purple-600 hover:bg-purple-500 text-white text-xs font-semibold transition-all disabled:opacity-50"
+            className="flex items-center gap-1.5 px-3.5 py-1.5 rounded-xl bg-gradient-to-r from-[#F7931E] to-[#FF6B00] hover:from-[#FF9C26] hover:to-[#EB740A] text-white text-xs font-bold shadow-md shadow-orange-500/20 hover:shadow-lg transition-all disabled:opacity-50"
           >
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="w-3.5 h-3.5">
               <path strokeLinecap="round" strokeLinejoin="round" d="M6.72 13.829c-.24.03-.48.062-.72.096m.72-.096a42.415 42.415 0 0110.56 0m-10.56 0L6.34 18m10.94-4.171c.24.03.48.062.72.096m-.72-.096L17.66 18m0 0l.229 2.523a1.125 1.125 0 01-1.12 1.227H7.231c-.662 0-1.18-.568-1.12-1.227L6.34 18m11.318 0h1.091A2.25 2.25 0 0021 15.75V9.456c0-1.081-.768-2.015-1.837-2.175a48.055 48.055 0 00-1.913-.247M6.34 18H5.25A2.25 2.25 0 013 15.75V9.456c0-1.081.768-2.015 1.837-2.175a48.041 48.041 0 011.913-.247m10.5 0a48.536 48.536 0 00-10.5 0m10.5 0V3.375c0-.621-.504-1.125-1.125-1.125h-8.25c-.621 0-1.125.504-1.125 1.125v3.659M18 10.5h.008v.008H18V10.5zm-3 0h.008v.008H15V10.5z" />
@@ -123,11 +127,20 @@ export default function ResumePreview({ onPrint }) {
         </div>
       </div>
 
-      {/* A4 preview — always one page via scale-to-fit */}
-      <div className="flex-1 overflow-auto bg-neutral-950 p-6 flex justify-center">
+      {/* A4 preview canvas wrapper — light theme with orange/milky-white styling */}
+      <div className="flex-1 overflow-auto bg-[#FFFDF9] bg-dot-pattern p-6 flex justify-center border-t border-orange-100/50">
         <div style={{ transform: `scale(${zoom})`, transformOrigin: 'top center', transition: 'transform 0.2s' }}>
           {/* Outer fixed A4 frame */}
-          <div style={{ width: `${A4_W}px`, height: `${A4_PX}px`, overflow: 'hidden', background: '#fff', boxShadow: '0 4px 40px rgba(0,0,0,0.5)', position: 'relative', borderRadius: '2px' }}
+          <div style={{
+            width: `${A4_W}px`,
+            height: `${A4_PX}px`,
+            overflow: 'hidden',
+            background: '#fff',
+            boxShadow: '0 10px 30px -5px rgba(247, 147, 30, 0.15), 0 4px 15px -3px rgba(15, 23, 42, 0.08)',
+            border: '1px solid rgba(247, 147, 30, 0.2)',
+            position: 'relative',
+            borderRadius: '2px'
+          }}
             onClick={e => previewRef.current?.focus()}
           >
             {/* Inner content scaled to fit — fontScale increases size, outer clips to A4 */}
