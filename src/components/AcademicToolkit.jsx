@@ -19,7 +19,7 @@ const ICONS = {
 const FIELDS = {
   leave:       ['name','rollNo','year','department','college','receiver','reason','days','extra'],
   bonafide:    ['name','rollNo','year','department','college','receiver','reason','extra'],
-  internship:  ['name','rollNo','year','department','college','receiver','reason','days','extra'],
+  internship:  ['name','rollNo','year','department','college','receiver','reason','weeks','extra'],
   permission:  ['name','rollNo','year','department','college','receiver','reason','extra'],
   apology:     ['name','rollNo','year','department','college','receiver','reason','extra'],
   scholarship: ['name','rollNo','year','department','college','receiver','reason','extra'],
@@ -36,7 +36,8 @@ const FIELD_META = {
   college:    { label: 'College Name',         placeholder: 'e.g. ABC Engineering College' },
   receiver:   { label: 'To (Receiver)',        placeholder: 'e.g. The HOD / Principal' },
   reason:     { label: 'Reason / Purpose',     placeholder: 'e.g. Medical emergency'   },
-  days:       { label: 'No. of Days / Weeks',  placeholder: 'e.g. 3'                   },
+  days:       { label: 'No. of Days',          placeholder: 'e.g. 3'                   },
+  weeks:      { label: 'No. of Weeks',         placeholder: 'e.g. 4'                   },
   extra:      { label: 'Additional Details',   placeholder: 'Any extra info (optional)'},
 }
 
@@ -195,7 +196,7 @@ function PreviewPanel({ generated, content, fontSize, setFontSize, exporting, on
 }
 
 function DocModal({ docType, onClose, onPrint }) {
-  const EMPTY = { name:'', rollNo:'', year:'', department:'', college:'', receiver:'', reason:'', days:'', extra:'' }
+  const EMPTY = { name:'', rollNo:'', year:'', department:'', college:'', receiver:'', reason:'', days:'', weeks:'', extra:'' }
   const [form,      setForm]      = useState(EMPTY)
   const [content,   setContent]   = useState('')
   const [generated, setGenerated] = useState(false)

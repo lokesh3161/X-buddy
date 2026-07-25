@@ -19,8 +19,10 @@ pdfjsLib.GlobalWorkerOptions.workerSrc = new URL(
 import { processFile } from './utils/fileProcessor'
 
 import ResumeBuilder from './resume-builder/ResumeBuilder'
+import NavigationDrawer from './components/NavigationDrawer'
+import MyOrdersPage from './components/MyOrdersPage'
 
-const STEP = { HERO: 'hero', UPLOAD: 'upload', SETTINGS: 'settings', PRINTING: 'printing', RESUME: 'resume' }
+const STEP = { HERO: 'hero', UPLOAD: 'upload', SETTINGS: 'settings', PRINTING: 'printing', RESUME: 'resume', MY_ORDERS: 'my_orders' }
 const DEFAULT_SETTINGS = {
   colorMode: 'bw', sideMode: 'single', copies: 1,
   pageSize: 'A4', orientation: 'portrait', margins: 'normal',
@@ -45,7 +47,31 @@ export default function App() {
   const [settings, setSettings]       = useState(DEFAULT_SETTINGS)
   const [showPayment, setShowPayment] = useState(false)
   const [orderId, setOrderId]         = useState(null)
+  const [isDrawerOpen, setIsDrawerOpen] = useState(false)
   const settingsRef = useRef(null)
+
+  function handleDrawerNavigate(target) {
+    setIsDrawerOpen(false)
+    if (target === 'home') {
+      setStep(STEP.HERO)
+      window.scrollTo({ top: 0, behavior: 'smooth' })
+    } else if (target === 'my_orders') {
+      setStep(STEP.MY_ORDERS)
+      window.scrollTo({ top: 0, behavior: 'smooth' })
+    } else if (target === 'about') {
+      setStep(STEP.HERO)
+      setTimeout(() => {
+        const el = document.getElementById('why-x-buddy')
+        if (el) el.scrollIntoView({ behavior: 'smooth' })
+      }, 100)
+    } else if (target === 'help') {
+      setStep(STEP.HERO)
+      setTimeout(() => {
+        const el = document.getElementById('how-it-works')
+        if (el) el.scrollIntoView({ behavior: 'smooth' })
+      }, 100)
+    }
+  }
 
   const total = fileInfo
     ? calcTotal({ totalPages: fileInfo.totalPages, colorMode: settings.colorMode, isDoubleSide: settings.sideMode === 'double', copies: settings.copies })
@@ -105,22 +131,40 @@ export default function App() {
 
   return (
     <div className="min-h-screen bg-white text-slate-900 selection:bg-orange-100 selection:text-[#F7931E]">
-      {/* Navigation */}
-      <nav className="fixed top-0 left-0 right-0 z-50 glass-nav transition-all duration-300">
+      {/* Navigation Drawer */}
+      <NavigationDrawer
+        isOpen={isDrawerOpen}
+        onClose={() => setIsDrawerOpen(false)}
+        onNavigate={handleDrawerNavigate}
+        currentStep={step}
+      />
+
+      {/* Navigation Bar */}
+      <nav className="fixed top-0 left-0 right-0 z-40 glass-nav transition-all duration-300">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 py-3.5 flex items-center justify-between">
-          <button onClick={handleReset} className="flex items-center gap-2.5 group text-left">
-            <div className="w-9 h-9 rounded-xl bg-gradient-to-tr from-[#F7931E] to-amber-400 flex items-center justify-center shadow-md shadow-orange-500/20 group-hover:scale-105 transition-transform">
-              <span className="text-white font-extrabold text-base tracking-wider">X</span>
-            </div>
-            <div className="flex flex-col">
-              <span className="text-slate-900 font-extrabold text-lg leading-none tracking-tight group-hover:text-[#F7931E] transition-colors">
-                X Buddy
-              </span>
-              <span className="text-[10px] font-semibold text-slate-400 tracking-wider uppercase">
-                Smart Kiosk Platform
-              </span>
-            </div>
-          </button>
+          <div className="flex items-center gap-3">
+            <button
+              type="button"
+              onClick={() => setIsDrawerOpen(true)}
+              className="p-2 rounded-xl bg-orange-50 hover:bg-orange-100 text-[#F78C25] font-bold text-base transition-all border border-orange-200 shadow-xs"
+              aria-label="Open Navigation Menu"
+            >
+              ☰
+            </button>
+            <button onClick={handleReset} className="flex items-center gap-2.5 group text-left">
+              <div className="w-9 h-9 rounded-xl bg-gradient-to-tr from-[#F7931E] to-amber-400 flex items-center justify-center shadow-md shadow-orange-500/20 group-hover:scale-105 transition-transform">
+                <span className="text-white font-extrabold text-base tracking-wider">X</span>
+              </div>
+              <div className="flex flex-col">
+                <span className="text-slate-900 font-extrabold text-lg leading-none tracking-tight group-hover:text-[#F7931E] transition-colors">
+                  X Buddy
+                </span>
+                <span className="text-[10px] font-semibold text-slate-400 tracking-wider uppercase">
+                  Smart Kiosk Platform
+                </span>
+              </div>
+            </button>
+          </div>
 
           {step === STEP.HERO ? (
             <div className="flex items-center gap-6">
@@ -132,6 +176,9 @@ export default function App() {
                 <button onClick={() => setStep(STEP.RESUME)} className="hover:text-[#F7931E] transition-colors">
                   Resume Builder
                 </button>
+                <button onClick={() => setStep(STEP.MY_ORDERS)} className="hover:text-[#F7931E] transition-colors flex items-center gap-1">
+                  📋 My Orders
+                </button>
               </div>
               <button
                 onClick={() => setStep(STEP.UPLOAD)}
@@ -140,7 +187,7 @@ export default function App() {
                 Print Now →
               </button>
             </div>
-          ) : step === STEP.RESUME ? (
+          ) : step === STEP.RESUME || step === STEP.MY_ORDERS ? (
             <button
               onClick={handleReset}
               className="px-4 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-lg text-xs font-semibold transition-colors"
@@ -237,9 +284,21 @@ export default function App() {
             </motion.div>
           )}
 
+          {step === STEP.MY_ORDERS && (
+            <motion.div key="my_orders" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}>
+              <MyOrdersPage onStartPrinting={() => setStep(STEP.UPLOAD)} />
+            </motion.div>
+          )}
+
           {step === STEP.PRINTING && (
             <motion.div key="printing" initial={{ opacity: 0 }} animate={{ opacity: 1 }}>
-              <PrintStatus fileInfo={fileInfo} settings={settings} orderId={orderId} onReset={handleReset} />
+              <PrintStatus
+                fileInfo={fileInfo}
+                settings={settings}
+                orderId={orderId}
+                onReset={handleReset}
+                onViewMyOrders={() => setStep(STEP.MY_ORDERS)}
+              />
             </motion.div>
           )}
         </AnimatePresence>

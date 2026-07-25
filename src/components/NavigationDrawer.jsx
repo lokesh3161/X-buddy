@@ -1,0 +1,98 @@
+import { motion, AnimatePresence } from 'framer-motion'
+
+export default function NavigationDrawer({ isOpen, onClose, onNavigate, currentStep }) {
+  const menuItems = [
+    { id: 'home', label: 'Home', icon: '🏠', action: () => onNavigate('home') },
+    { id: 'my_orders', label: 'My Orders', icon: '📋', action: () => onNavigate('my_orders') },
+    { id: 'about', label: 'About X Buddy', icon: '💡', action: () => onNavigate('about') },
+    { id: 'help', label: 'Help', icon: '❓', action: () => onNavigate('help') },
+  ]
+
+  return (
+    <AnimatePresence>
+      {isOpen && (
+        <>
+          {/* Backdrop */}
+          <motion.div
+            key="drawer-backdrop"
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            onClick={onClose}
+            className="fixed inset-0 bg-black/40 backdrop-blur-xs z-50"
+          />
+
+          {/* Slide-out Drawer */}
+          <motion.div
+            key="drawer-content"
+            initial={{ x: '-100%' }}
+            animate={{ x: 0 }}
+            exit={{ x: '-100%' }}
+            transition={{ type: 'spring', damping: 25, stiffness: 250 }}
+            className="fixed top-0 left-0 bottom-0 w-72 sm:w-80 bg-[#FFFDF9] border-r border-orange-200 shadow-2xl z-50 flex flex-col justify-between"
+          >
+            <div>
+              {/* Header */}
+              <div className="p-5 border-b border-orange-100 flex items-center justify-between bg-white/60">
+                <div className="flex items-center gap-2.5">
+                  <div className="w-9 h-9 rounded-xl bg-gradient-to-tr from-[#F7931E] to-amber-400 flex items-center justify-center shadow-md shadow-orange-500/20">
+                    <span className="text-white font-extrabold text-base tracking-wider">X</span>
+                  </div>
+                  <div className="flex flex-col">
+                    <span className="text-slate-900 font-extrabold text-base leading-none tracking-tight">
+                      X Buddy
+                    </span>
+                    <span className="text-[10px] font-semibold text-slate-400 tracking-wider uppercase mt-0.5">
+                      Smart Kiosk Platform
+                    </span>
+                  </div>
+                </div>
+                <button
+                  onClick={onClose}
+                  className="w-8 h-8 rounded-full bg-orange-50 hover:bg-orange-100 text-gray-400 flex items-center justify-center transition-colors"
+                >
+                  ✕
+                </button>
+              </div>
+
+              {/* Navigation Items */}
+              <div className="p-4 space-y-1.5">
+                <p className="px-3 text-[10px] uppercase font-bold text-gray-400 tracking-wider mb-2">
+                  Navigation
+                </p>
+                {menuItems.map((item) => {
+                  const isActive = currentStep === item.id || (item.id === 'home' && currentStep === 'hero')
+                  return (
+                    <button
+                      key={item.id}
+                      onClick={() => {
+                        item.action()
+                        onClose()
+                      }}
+                      className={`w-full flex items-center gap-3 px-3.5 py-3 rounded-2xl text-xs font-bold transition-all ${
+                        isActive
+                          ? 'bg-orange-50 text-[#F7931E] border border-orange-200 shadow-xs'
+                          : 'text-slate-700 hover:bg-orange-50/60 hover:text-[#F78C25]'
+                      }`}
+                    >
+                      <span className="text-base">{item.icon}</span>
+                      <span>{item.label}</span>
+                    </button>
+                  )
+                })}
+              </div>
+            </div>
+
+            {/* Footer inside Drawer */}
+            <div className="p-4 border-t border-orange-100 bg-orange-50/30">
+              <div className="p-3 bg-white border border-orange-100 rounded-xl text-center">
+                <p className="text-xs font-semibold text-[#222222]">X Buddy Print Kiosk</p>
+                <p className="text-[11px] text-gray-400 mt-0.5">Show Order ID to shopkeeper at booth to collect</p>
+              </div>
+            </div>
+          </motion.div>
+        </>
+      )}
+    </AnimatePresence>
+  )
+}

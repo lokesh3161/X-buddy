@@ -12,12 +12,12 @@ export const DOC_TYPES = [
 
 const today = () => new Date().toLocaleDateString('en-IN', { day: '2-digit', month: 'long', year: 'numeric' })
 
-export function generateDocument({ type, name, receiver, reason, days, extra, department, rollNo, year, college }) {
+export function generateDocument({ type, name, receiver, reason, days, weeks, extra, department, rollNo, year, college }) {
   const date  = today()
   const to    = receiver   || 'The HOD'
-  const dept  = department || 'Computer Science'
+  const dept  = department || '[Department]'
   const roll  = rollNo     || '______'
-  const yr    = year       || 'II'
+  const yr    = year       || '[Year]'
   const clg   = college    || '[College Name]'
   const nm    = name       || '[Your Name]'
 
@@ -38,7 +38,7 @@ export function generateDocument({ type, name, receiver, reason, days, extra, de
     internship: {
       title:   'Internship Permission Request',
       subject: `Sub: Request for Permission to Attend Internship\n\nRespected Sir/Madam,\n\n`,
-      body:    `I am ${nm}, a student of ${yr} Year, Department of ${dept} (Roll No: ${roll}). I have been offered an internship opportunity at [Company Name] for a duration of ${days || 'N'} week(s).\n\nPurpose: ${reason || '[Describe the internship]'}.\n\n${extra ? `${extra}\n\n` : ''}I humbly request your permission and necessary leave to attend this internship, which will greatly contribute to my professional development.`,
+      body:    `I am ${nm}, a student of ${yr} Year, Department of ${dept} (Roll No: ${roll}). I have been offered an internship opportunity at [Company Name] for a duration of ${weeks || days || 'N'} week(s).\n\nPurpose: ${reason || '[Describe the internship]'}.\n\n${extra ? `${extra}\n\n` : ''}I humbly request your permission and necessary leave to attend this internship, which will greatly contribute to my professional development.`,
     },
     permission: {
       title:   'Permission Letter',

@@ -2,6 +2,7 @@ import { useState, useRef, useEffect, useCallback } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { fileToBase64 } from '../utils/fileToBase64'
 import { submitOrder } from '../utils/api'
+import { saveOrder } from '../utils/orderStore'
 import OrderProgress from './OrderProgress'
 
 const inputCls = 'w-full bg-[#FAFAFA] border border-orange-200 rounded-xl px-4 py-2.5 text-[#222222] text-sm placeholder:text-gray-400 focus:outline-none focus:border-[#F78C25] focus:ring-1 focus:ring-orange-200 transition-all'
@@ -96,6 +97,17 @@ export default function PaymentProofForm({ orderMeta, onSuccess, onClose }) {
       setStep('print_agent', 'done')
       setStep('confirmed', 'done')
       setResult({ orderId: res.orderId, message: res.message })
+      if (res?.orderId) {
+        saveOrder({
+          orderId: res.orderId,
+          fileName: orderMeta?.fileName,
+          totalPages: orderMeta?.totalPages,
+          copies: orderMeta?.copies,
+          printType: orderMeta?.printType,
+          amount: orderMeta?.amount,
+          savedAt: Date.now(),
+        })
+      }
       onSuccess(res.orderId)
 
     } catch (err) {

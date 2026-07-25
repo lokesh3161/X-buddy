@@ -1,7 +1,7 @@
 import { useEffect, useState, useRef } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 
-const API_URL = 'https://script.google.com/macros/s/AKfycbyWiu74FuFA-m-uord17vVKSN67y3_Hr7gH1u-mZ6SHafeD818LvRaA194C517_HinS/exec'
+const API_URL = 'https://script.google.com/macros/s/AKfycby8ykWErzVD79TrafdArCmA6i9YipHVZOjw7zFWDjpL1e44HlKORx-GAnCuGGYgcmyB/exec'
 const OFFLINE_TIMEOUT_MS = 30000
 const POLL_INTERVAL_MS   = 5000
 
@@ -21,7 +21,7 @@ function statusToStage(status) {
   }
 }
 
-export default function PrintStatus({ fileInfo, settings, orderId, onReset }) {
+export default function PrintStatus({ fileInfo, settings, orderId, onReset, onViewMyOrders }) {
   // Guard: this screen must never render without a real confirmed orderId
   if (!orderId) return null
   const [stageIndex,    setStageIndex]    = useState(0)
@@ -29,6 +29,7 @@ export default function PrintStatus({ fileInfo, settings, orderId, onReset }) {
   const [serverOffline, setServerOffline] = useState(false)
   const [printFailed,   setPrintFailed]   = useState(false)
   const [lastChecked,   setLastChecked]   = useState(null)
+  const [collectionChoice, setCollectionChoice] = useState('now')
   const pollRef    = useRef(null)
   const offlineRef = useRef(null)
   const statusRef  = useRef('Waiting')
@@ -77,7 +78,7 @@ export default function PrintStatus({ fileInfo, settings, orderId, onReset }) {
   return (
     <motion.section initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} className="max-w-2xl mx-auto px-4 py-8">
       {/* Header */}
-      <div className="text-center mb-8">
+      <div className="text-center mb-6">
         <motion.div
           initial={{ scale: 0 }} animate={{ scale: 1 }} transition={{ type: 'spring', damping: 15 }}
           className="w-16 h-16 rounded-full bg-green-50 border border-green-200 flex items-center justify-center mx-auto mb-4"
@@ -86,12 +87,59 @@ export default function PrintStatus({ fileInfo, settings, orderId, onReset }) {
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
           </svg>
         </motion.div>
-        <h2 className="text-2xl font-bold text-[#222222]">Order Confirmed</h2>
-        <p className="text-gray-400 text-sm mt-1">Your order was saved and sent to the printer. Go to the booth to collect.</p>
-        {orderId && (
-          <div className="inline-flex items-center gap-2 mt-3 px-4 py-1.5 rounded-full bg-orange-50 border border-orange-200">
-            <span className="text-gray-400 text-xs">Order ID:</span>
-            <span className="text-[#F78C25] font-mono text-xs font-semibold">{orderId}</span>
+        <h2 className="text-2xl font-bold text-[#222222]">✓ Order Confirmed</h2>
+        <div className="inline-flex items-center gap-2 mt-2 px-4 py-1.5 rounded-full bg-orange-50 border border-orange-200">
+          <span className="text-gray-400 text-xs">Order ID:</span>
+          <span className="text-[#F78C25] font-mono text-xs font-bold tracking-wider">{orderId}</span>
+        </div>
+      </div>
+
+      {/* Collection Framing Card */}
+      <div className="mb-6 p-5 bg-[#FFF8F2] border border-orange-200 rounded-2xl text-center shadow-xs">
+        <p className="text-sm font-bold text-[#222222] mb-3">When would you like to collect your document?</p>
+        <div className="flex gap-3 max-w-sm mx-auto mb-4">
+          <button
+            type="button"
+            onClick={() => setCollectionChoice('now')}
+            className={`flex-1 py-2.5 px-3 rounded-xl text-xs font-bold transition-all border ${
+              collectionChoice === 'now'
+                ? 'bg-[#F78C25] text-white border-[#F78C25] shadow-sm shadow-orange-500/20'
+                : 'bg-white text-gray-700 border-orange-200 hover:bg-orange-50'
+            }`}
+          >
+            🏃 Collect Now
+          </button>
+          <button
+            type="button"
+            onClick={() => setCollectionChoice('later')}
+            className={`flex-1 py-2.5 px-3 rounded-xl text-xs font-bold transition-all border ${
+              collectionChoice === 'later'
+                ? 'bg-[#F78C25] text-white border-[#F78C25] shadow-sm shadow-orange-500/20'
+                : 'bg-white text-gray-700 border-orange-200 hover:bg-orange-50'
+            }`}
+          >
+            ⏱️ Collect Later
+          </button>
+        </div>
+
+        {collectionChoice === 'now' ? (
+          <div className="bg-white/80 p-3.5 rounded-xl border border-orange-100 text-xs text-gray-600">
+            <span className="font-semibold text-[#F78C25]">Head to the booth now and give them this ID.</span>
+            <p className="mt-1 text-gray-500">The shopkeeper will enter Order ID <span className="font-mono font-bold text-gray-800">{orderId}</span> into the kiosk to release your print.</p>
+          </div>
+        ) : (
+          <div className="bg-white/80 p-3.5 rounded-xl border border-orange-100 text-xs text-gray-600 space-y-2">
+            <span className="font-semibold text-emerald-600">✓ We've saved this for you in My Orders!</span>
+            <p className="text-gray-500">You can close this tab and come back anytime. Show Order ID <span className="font-mono font-bold text-gray-800">{orderId}</span> at the booth whenever you are ready.</p>
+            {onViewMyOrders && (
+              <button
+                type="button"
+                onClick={onViewMyOrders}
+                className="mt-1 inline-flex items-center gap-1.5 px-3 py-1.5 bg-orange-100 hover:bg-orange-200 text-[#F78C25] font-bold rounded-lg transition-colors text-xs"
+              >
+                📋 View in My Orders →
+              </button>
+            )}
           </div>
         )}
       </div>
