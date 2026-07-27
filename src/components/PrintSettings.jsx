@@ -1,10 +1,12 @@
-import { motion } from 'framer-motion'
+import { useState } from 'react'
+import { motion, AnimatePresence } from 'framer-motion'
 import { parsePageRange } from '../utils/pageRangeParser'
 import { calcTotal } from '../utils/pricing'
 
 function OptionButton({ active, onClick, children }) {
   return (
     <button
+      type="button"
       onClick={onClick}
       className={`
         flex-1 py-2.5 px-3 rounded-xl font-medium text-sm transition-all duration-200
@@ -32,6 +34,9 @@ export default function PrintSettings({ fileInfo, settings, onChange }) {
   const { colorMode, sideMode, copies, pageSize, orientation, margins, pageRange, customPages, imageFit } = settings
   const set = (key, val) => onChange({ ...settings, [key]: val })
   const isImage = fileInfo?.typeInfo?.category === 'image'
+
+  const hasCustomAdvanced = pageRange === 'custom' || pageSize !== 'A4' || orientation !== 'portrait' || margins !== 'normal'
+  const [showMoreOptions, setShowMoreOptions] = useState(hasCustomAdvanced)
 
   const customParse = pageRange === 'custom' && customPages
     ? parsePageRange(customPages, fileInfo.totalPages)
@@ -98,112 +103,146 @@ export default function PrintSettings({ fileInfo, settings, onChange }) {
           )}
         </SettingCard>
 
-        {/* Page Size + Orientation */}
-        <div className="grid grid-cols-2 gap-4">
-          <SettingCard title="Page Size">
-            <div className="flex flex-col gap-2">
-              {['A4', 'Letter', 'Legal'].map(s => (
-                <OptionButton key={s} active={pageSize === s} onClick={() => set('pageSize', s)}>{s}</OptionButton>
-              ))}
-            </div>
-          </SettingCard>
-          <SettingCard title="Orientation">
-            <div className="flex flex-col gap-2">
-              <OptionButton active={orientation === 'portrait'} onClick={() => set('orientation', 'portrait')}>↕ Portrait</OptionButton>
-              <OptionButton active={orientation === 'landscape'} onClick={() => set('orientation', 'landscape')}>↔ Landscape</OptionButton>
-            </div>
-          </SettingCard>
-        </div>
-
-        {/* Margins */}
-        <SettingCard title="Margins">
-          <div className="flex gap-2">
-            {[
-              { key: 'normal',  label: 'Normal' },
-              { key: 'narrow',  label: 'Narrow' },
-              { key: 'wide',    label: 'Wide'   },
-              { key: 'none',    label: 'None'   },
-            ].map(m => (
-              <OptionButton key={m.key} active={margins === m.key} onClick={() => set('margins', m.key)}>{m.label}</OptionButton>
-            ))}
-          </div>
-        </SettingCard>
-
-        {/* Image Fit — only for images */}
-        {isImage && (
-          <SettingCard title="Image Fit">
-            <div className="flex gap-2">
-              <OptionButton active={imageFit === 'fit'}     onClick={() => set('imageFit', 'fit')}>Fit to Page</OptionButton>
-              <OptionButton active={imageFit === 'fill'}    onClick={() => set('imageFit', 'fill')}>Crop to Fill</OptionButton>
-              <OptionButton active={imageFit === 'stretch'} onClick={() => set('imageFit', 'stretch')}>Stretch</OptionButton>
-            </div>
-          </SettingCard>
-        )}
-
-        {/* Page Range */}
-        {(Number(fileInfo?.totalPages) || 1) >= 1 && (
-          <SettingCard title="Page Range">
-            <div className="flex gap-2 mb-3">
-              <OptionButton active={pageRange === 'all'}    onClick={() => set('pageRange', 'all')}>All Pages</OptionButton>
-              <OptionButton active={pageRange === 'custom'} onClick={() => set('pageRange', 'custom')}>Custom Range</OptionButton>
-            </div>
-            {pageRange === 'custom' && (
-              <div className="space-y-2">
-                <input
-                  type="text"
-                  value={customPages}
-                  onChange={e => set('customPages', e.target.value)}
-                  placeholder="e.g. 1-3, 5, 7-9"
-                  className={`w-full bg-[#FFF8F2] border rounded-xl px-4 py-2.5 text-sm text-[#222222] focus:outline-none transition-colors ${
-                    customPages.trim() && !customParse.valid
-                      ? 'border-rose-400 focus:border-rose-500'
-                      : 'border-orange-200 focus:border-[#F78C25]'
-                  }`}
-                />
-                {customPages.trim().length > 0 && !customParse.valid && (
-                  <p className="text-rose-500 text-xs font-medium">{customParse.error}</p>
-                )}
-                {customPages.trim().length > 0 && customParse.valid && (
-                  <div className="p-3.5 bg-orange-50/80 border border-orange-200 rounded-xl text-xs space-y-1.5 text-gray-700 mt-2">
-                    <div className="flex justify-between">
-                      <span className="text-gray-500">Selected Pages:</span>
-                      <span className="font-semibold text-gray-800">{customParse.selectedPages.length}</span>
-                    </div>
-                    <div className="flex justify-between">
-                      <span className="text-gray-500">Copies:</span>
-                      <span className="font-semibold text-gray-800">× {copies}</span>
-                    </div>
-                    <div className="flex justify-between">
-                      <span className="text-gray-500">Total Printable Pages:</span>
-                      <span className="font-semibold text-gray-800">{customParse.selectedPages.length} × {copies} = {customParse.selectedPages.length * copies}</span>
-                    </div>
-                    <div className="flex justify-between border-t border-orange-200 pt-2 mt-1">
-                      <span className="font-medium text-gray-800">Estimated Cost:</span>
-                      <span className="font-bold text-[#F78C25] text-sm">₹{customTotal}</span>
-                    </div>
-                  </div>
-                )}
-                <p className="text-gray-400 text-xs mt-1">Enter page numbers or ranges separated by commas</p>
-              </div>
-            )}
-          </SettingCard>
-        )}
-
         {/* Copies */}
         <SettingCard title="Number of Copies">
           <div className="flex items-center gap-4">
             <button
+              type="button"
               onClick={() => set('copies', Math.max(1, copies - 1))}
-              className="w-10 h-10 rounded-xl bg-orange-50 hover:bg-orange-100 border border-orange-200 text-[#F78C25] font-bold text-lg transition-all"
+              className="w-10 h-10 rounded-xl bg-orange-50 hover:bg-orange-100 border border-orange-200 text-[#F78C25] font-bold text-lg transition-all flex items-center justify-center"
             >−</button>
             <span className="text-3xl font-bold text-[#222222] w-12 text-center">{copies}</span>
             <button
+              type="button"
               onClick={() => set('copies', Math.min(99, copies + 1))}
-              className="w-10 h-10 rounded-xl bg-orange-50 hover:bg-orange-100 border border-orange-200 text-[#F78C25] font-bold text-lg transition-all"
+              className="w-10 h-10 rounded-xl bg-orange-50 hover:bg-orange-100 border border-orange-200 text-[#F78C25] font-bold text-lg transition-all flex items-center justify-center"
             >+</button>
             <span className="text-gray-400 text-sm ml-2">{copies > 1 ? `${copies} copies` : '1 copy'}</span>
           </div>
         </SettingCard>
+
+        {/* Toggle Button for More Options */}
+        <button
+          type="button"
+          onClick={() => setShowMoreOptions(prev => !prev)}
+          className="w-full py-3.5 px-5 rounded-2xl bg-white border border-orange-200 text-[#F78C25] font-bold text-sm flex items-center justify-between shadow-xs hover:bg-orange-50/70 transition-all duration-200"
+        >
+          <span className="flex items-center gap-2">
+            ⚙️ More Options
+            {hasCustomAdvanced && (
+              <span className="px-2 py-0.5 rounded-full bg-orange-100 text-[#F78C25] text-[10px] font-extrabold uppercase tracking-wide">
+                Custom
+              </span>
+            )}
+          </span>
+          <span className="text-gray-400 font-extrabold text-sm transition-transform duration-200" style={{ transform: showMoreOptions ? 'rotate(180deg)' : 'rotate(0deg)' }}>
+            ▼
+          </span>
+        </button>
+
+        {/* Collapsible Advanced Options */}
+        <AnimatePresence>
+          {showMoreOptions && (
+            <motion.div
+              initial={{ opacity: 0, height: 0 }}
+              animate={{ opacity: 1, height: 'auto' }}
+              exit={{ opacity: 0, height: 0 }}
+              transition={{ duration: 0.25, ease: 'easeInOut' }}
+              className="space-y-4 overflow-hidden pt-1"
+            >
+              {/* Page Size + Orientation */}
+              <div className="grid grid-cols-2 gap-4">
+                <SettingCard title="Page Size">
+                  <div className="flex flex-col gap-2">
+                    {['A4', 'Letter', 'Legal'].map(s => (
+                      <OptionButton key={s} active={pageSize === s} onClick={() => set('pageSize', s)}>{s}</OptionButton>
+                    ))}
+                  </div>
+                </SettingCard>
+                <SettingCard title="Orientation">
+                  <div className="flex flex-col gap-2">
+                    <OptionButton active={orientation === 'portrait'} onClick={() => set('orientation', 'portrait')}>↕ Portrait</OptionButton>
+                    <OptionButton active={orientation === 'landscape'} onClick={() => set('orientation', 'landscape')}>↔ Landscape</OptionButton>
+                  </div>
+                </SettingCard>
+              </div>
+
+              {/* Margins */}
+              <SettingCard title="Margins">
+                <div className="flex gap-2">
+                  {[
+                    { key: 'normal',  label: 'Normal' },
+                    { key: 'narrow',  label: 'Narrow' },
+                    { key: 'wide',    label: 'Wide'   },
+                    { key: 'none',    label: 'None'   },
+                  ].map(m => (
+                    <OptionButton key={m.key} active={margins === m.key} onClick={() => set('margins', m.key)}>{m.label}</OptionButton>
+                  ))}
+                </div>
+              </SettingCard>
+
+              {/* Image Fit — only for images */}
+              {isImage && (
+                <SettingCard title="Image Fit">
+                  <div className="flex gap-2">
+                    <OptionButton active={imageFit === 'fit'}     onClick={() => set('imageFit', 'fit')}>Fit to Page</OptionButton>
+                    <OptionButton active={imageFit === 'fill'}    onClick={() => set('imageFit', 'fill')}>Crop to Fill</OptionButton>
+                    <OptionButton active={imageFit === 'stretch'} onClick={() => set('imageFit', 'stretch')}>Stretch</OptionButton>
+                  </div>
+                </SettingCard>
+              )}
+
+              {/* Page Range */}
+              {(Number(fileInfo?.totalPages) || 1) >= 1 && (
+                <SettingCard title="Page Range">
+                  <div className="flex gap-2 mb-3">
+                    <OptionButton active={pageRange === 'all'}    onClick={() => set('pageRange', 'all')}>All Pages</OptionButton>
+                    <OptionButton active={pageRange === 'custom'} onClick={() => set('pageRange', 'custom')}>Custom Range</OptionButton>
+                  </div>
+                  {pageRange === 'custom' && (
+                    <div className="space-y-2">
+                      <input
+                        type="text"
+                        value={customPages}
+                        onChange={e => set('customPages', e.target.value)}
+                        placeholder="e.g. 1-3, 5, 7-9"
+                        className={`w-full bg-[#FFF8F2] border rounded-xl px-4 py-2.5 text-sm text-[#222222] focus:outline-none transition-colors ${
+                          customPages.trim() && !customParse.valid
+                            ? 'border-rose-400 focus:border-rose-500'
+                            : 'border-orange-200 focus:border-[#F78C25]'
+                        }`}
+                      />
+                      {customPages.trim().length > 0 && !customParse.valid && (
+                        <p className="text-rose-500 text-xs font-medium">{customParse.error}</p>
+                      )}
+                      {customPages.trim().length > 0 && customParse.valid && (
+                        <div className="p-3.5 bg-orange-50/80 border border-orange-200 rounded-xl text-xs space-y-1.5 text-gray-700 mt-2">
+                          <div className="flex justify-between">
+                            <span className="text-gray-500">Selected Pages:</span>
+                            <span className="font-semibold text-gray-800">{customParse.selectedPages.length}</span>
+                          </div>
+                          <div className="flex justify-between">
+                            <span className="text-gray-500">Copies:</span>
+                            <span className="font-semibold text-gray-800">× {copies}</span>
+                          </div>
+                          <div className="flex justify-between">
+                            <span className="text-gray-500">Total Printable Pages:</span>
+                            <span className="font-semibold text-gray-800">{customParse.selectedPages.length} × {copies} = {customParse.selectedPages.length * copies}</span>
+                          </div>
+                          <div className="flex justify-between border-t border-orange-200 pt-2 mt-1">
+                            <span className="font-medium text-gray-800">Estimated Cost:</span>
+                            <span className="font-bold text-[#F78C25] text-sm">₹{customTotal}</span>
+                          </div>
+                        </div>
+                      )}
+                      <p className="text-gray-400 text-xs mt-1">Enter page numbers or ranges separated by commas</p>
+                    </div>
+                  )}
+                </SettingCard>
+              )}
+            </motion.div>
+          )}
+        </AnimatePresence>
       </div>
     </motion.section>
   )
