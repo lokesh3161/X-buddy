@@ -141,7 +141,7 @@ export default function PrintSettings({ fileInfo, settings, onChange }) {
         )}
 
         {/* Page Range */}
-        {fileInfo.totalPages > 1 && (
+        {(Number(fileInfo?.totalPages) || 1) >= 1 && (
           <SettingCard title="Page Range">
             <div className="flex gap-2 mb-3">
               <OptionButton active={pageRange === 'all'}    onClick={() => set('pageRange', 'all')}>All Pages</OptionButton>
