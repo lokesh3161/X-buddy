@@ -19,8 +19,11 @@ export function calcEffectivePages(totalPages, isDoubleSide) {
   return totalPages
 }
 
-export function calcTotal({ totalPages, colorMode, isDoubleSide, copies }) {
-  const effectivePages = calcEffectivePages(totalPages, isDoubleSide)
+export function calcTotal({ totalPages, colorMode, isDoubleSide, copies, pageRange, selectedPages }) {
+  const pagesToCharge = pageRange === 'custom'
+    ? (Array.isArray(selectedPages) ? selectedPages.length : (selectedPages?.length || 0))
+    : totalPages
+  const effectivePages = calcEffectivePages(pagesToCharge, isDoubleSide)
   const ratePerPage = colorMode === 'color' ? RATES.color : RATES.bw
   return effectivePages * ratePerPage * copies
 }

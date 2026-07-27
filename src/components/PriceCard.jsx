@@ -1,13 +1,29 @@
 import { motion, AnimatePresence } from 'framer-motion'
 import { calcEffectivePages, calcTotal, estimatePrintTime, RATES } from '../utils/pricing'
+import { parsePageRange } from '../utils/pageRangeParser'
 
 export default function PriceCard({ fileInfo, settings, onPayAndPrint }) {
-  const { colorMode, sideMode, copies } = settings
-  const isDoubleSide   = sideMode === 'double'
-  const effectivePages = calcEffectivePages(fileInfo.totalPages, isDoubleSide)
+  const { colorMode, sideMode, copies, pageRange, customPages } = settings
+  const isDoubleSide = sideMode === 'double'
+
+  let selectedPages = []
+  if (pageRange === 'custom' && customPages) {
+    const parsed = parsePageRange(customPages, fileInfo.totalPages)
+    if (parsed.valid) selectedPages = parsed.selectedPages
+  }
+
+  const pagesToCharge  = pageRange === 'custom' ? selectedPages.length : fileInfo.totalPages
+  const effectivePages = calcEffectivePages(pagesToCharge, isDoubleSide)
   const ratePerPage    = colorMode === 'color' ? RATES.color : RATES.bw
-  const total          = calcTotal({ totalPages: fileInfo.totalPages, colorMode, isDoubleSide, copies })
-  const printTime      = estimatePrintTime(fileInfo.totalPages, isDoubleSide, copies)
+  const total          = calcTotal({
+    totalPages: fileInfo.totalPages,
+    colorMode,
+    isDoubleSide,
+    copies,
+    pageRange,
+    selectedPages,
+  })
+  const printTime      = estimatePrintTime(pagesToCharge, isDoubleSide, copies)
 
   return (
     <motion.section initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} className="max-w-2xl mx-auto px-4 py-4 pb-8">
@@ -16,6 +32,7 @@ export default function PriceCard({ fileInfo, settings, onPayAndPrint }) {
 
         <div className="space-y-3 mb-5">
           <Row label="Total Pages" value={fileInfo.totalPages} />
+          {pageRange === 'custom' && <Row label="Selected Pages" value={selectedPages.length} highlight />}
           {isDoubleSide && <Row label="Effective Pages (double side)" value={effectivePages} highlight />}
           <Row label="Rate" value={`₹${ratePerPage}/page`} />
           <Row label="Copies" value={`× ${copies}`} />

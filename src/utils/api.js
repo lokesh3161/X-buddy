@@ -169,6 +169,10 @@ export async function submitOrder(orderData, { onStep } = {}) {
       printType: orderData.printType || 'B&W', printSide: orderData.printSide || 'Single',
       pageSize: orderData.pageSize || 'A4', orientation: orderData.orientation || 'portrait',
       amount: String(orderData.amount), transactionId: orderData.transactionId,
+      pageRange: orderData.pageRange || 'all',
+      customPages: orderData.customPages || '',
+      printableCount: String(orderData.printableCount || orderData.totalPages),
+      selectedPages: JSON.stringify(orderData.selectedPages || []),
     }).toString()}`, { signal: AbortSignal.timeout(20000) })
     if (!res.ok) throw { step: 'save_order', reason: `HTTP ${res.status}` }
     gasResult = await res.json()

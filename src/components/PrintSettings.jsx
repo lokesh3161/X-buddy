@@ -1,4 +1,6 @@
 import { motion } from 'framer-motion'
+import { parsePageRange } from '../utils/pageRangeParser'
+import { calcTotal } from '../utils/pricing'
 
 function OptionButton({ active, onClick, children }) {
   return (
@@ -30,6 +32,21 @@ export default function PrintSettings({ fileInfo, settings, onChange }) {
   const { colorMode, sideMode, copies, pageSize, orientation, margins, pageRange, customPages, imageFit } = settings
   const set = (key, val) => onChange({ ...settings, [key]: val })
   const isImage = fileInfo?.typeInfo?.category === 'image'
+
+  const customParse = pageRange === 'custom' && customPages
+    ? parsePageRange(customPages, fileInfo.totalPages)
+    : { valid: false, error: 'Please enter page numbers or ranges.' }
+
+  const customTotal = customParse.valid
+    ? calcTotal({
+        totalPages: fileInfo.totalPages,
+        colorMode,
+        isDoubleSide: sideMode === 'double',
+        copies,
+        pageRange: 'custom',
+        selectedPages: customParse.selectedPages,
+      })
+    : 0
 
   return (
     <motion.section initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} className="max-w-2xl mx-auto px-4 py-4">
@@ -131,16 +148,43 @@ export default function PrintSettings({ fileInfo, settings, onChange }) {
               <OptionButton active={pageRange === 'custom'} onClick={() => set('pageRange', 'custom')}>Custom Range</OptionButton>
             </div>
             {pageRange === 'custom' && (
-              <input
-                type="text"
-                value={customPages}
-                onChange={e => set('customPages', e.target.value)}
-                placeholder="e.g. 1-3, 5, 7-9"
-                className="w-full bg-[#FFF8F2] border border-orange-200 rounded-xl px-4 py-2.5 text-sm text-[#222222] focus:outline-none focus:border-[#F78C25] transition-colors"
-              />
-            )}
-            {pageRange === 'custom' && (
-              <p className="text-gray-400 text-xs mt-1.5">Enter page numbers or ranges separated by commas</p>
+              <div className="space-y-2">
+                <input
+                  type="text"
+                  value={customPages}
+                  onChange={e => set('customPages', e.target.value)}
+                  placeholder="e.g. 1-3, 5, 7-9"
+                  className={`w-full bg-[#FFF8F2] border rounded-xl px-4 py-2.5 text-sm text-[#222222] focus:outline-none transition-colors ${
+                    customPages.trim() && !customParse.valid
+                      ? 'border-rose-400 focus:border-rose-500'
+                      : 'border-orange-200 focus:border-[#F78C25]'
+                  }`}
+                />
+                {customPages.trim().length > 0 && !customParse.valid && (
+                  <p className="text-rose-500 text-xs font-medium">{customParse.error}</p>
+                )}
+                {customPages.trim().length > 0 && customParse.valid && (
+                  <div className="p-3.5 bg-orange-50/80 border border-orange-200 rounded-xl text-xs space-y-1.5 text-gray-700 mt-2">
+                    <div className="flex justify-between">
+                      <span className="text-gray-500">Selected Pages:</span>
+                      <span className="font-semibold text-gray-800">{customParse.selectedPages.length}</span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span className="text-gray-500">Copies:</span>
+                      <span className="font-semibold text-gray-800">× {copies}</span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span className="text-gray-500">Total Printable Pages:</span>
+                      <span className="font-semibold text-gray-800">{customParse.selectedPages.length} × {copies} = {customParse.selectedPages.length * copies}</span>
+                    </div>
+                    <div className="flex justify-between border-t border-orange-200 pt-2 mt-1">
+                      <span className="font-medium text-gray-800">Estimated Cost:</span>
+                      <span className="font-bold text-[#F78C25] text-sm">₹{customTotal}</span>
+                    </div>
+                  </div>
+                )}
+                <p className="text-gray-400 text-xs mt-1">Enter page numbers or ranges separated by commas</p>
+              </div>
             )}
           </SettingCard>
         )}

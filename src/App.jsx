@@ -11,6 +11,7 @@ import PaymentModal from './components/PaymentModal'
 import PrintStatus from './components/PrintStatus'
 import AcademicToolkit from './components/AcademicToolkit'
 import { calcTotal } from './utils/pricing'
+import { parsePageRange } from './utils/pageRangeParser'
 import * as pdfjsLib from 'pdfjs-dist'
 pdfjsLib.GlobalWorkerOptions.workerSrc = new URL(
   'pdfjs-dist/build/pdf.worker.min.mjs',
@@ -73,9 +74,24 @@ export default function App() {
     }
   }
 
+  let selectedPages = []
+  if (fileInfo && settings.pageRange === 'custom' && settings.customPages) {
+    const parsed = parsePageRange(settings.customPages, fileInfo.totalPages)
+    if (parsed.valid) selectedPages = parsed.selectedPages
+  }
+
   const total = fileInfo
-    ? calcTotal({ totalPages: fileInfo.totalPages, colorMode: settings.colorMode, isDoubleSide: settings.sideMode === 'double', copies: settings.copies })
+    ? calcTotal({
+        totalPages: fileInfo.totalPages,
+        colorMode: settings.colorMode,
+        isDoubleSide: settings.sideMode === 'double',
+        copies: settings.copies,
+        pageRange: settings.pageRange,
+        selectedPages,
+      })
     : 0
+
+  const printableCount = settings.pageRange === 'custom' ? selectedPages.length : (fileInfo?.totalPages || 1)
 
   const orderMeta = fileInfo
     ? {
@@ -85,7 +101,8 @@ export default function App() {
         printSide: settings.sideMode === 'double' ? 'Double' : 'Single',
         pageSize: settings.pageSize, orientation: settings.orientation,
         margins: settings.margins, pageRange: settings.pageRange,
-        customPages: settings.customPages, imageFit: settings.imageFit,
+        customPages: settings.customPages, selectedPages, printableCount,
+        imageFit: settings.imageFit,
         amount: total, pdfFile: fileInfo.file,
         requiresAgent: fileInfo.requiresAgent || false,
       }
