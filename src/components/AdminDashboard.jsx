@@ -112,7 +112,7 @@ const getBadge = status => {
   return 'bg-slate-500/15 text-slate-300'
 }
 
-const ADMIN_PASSWORD = '2580'
+const ADMIN_PASSWORD = import.meta.env.VITE_ADMIN_PASSWORD || 'Secur3#Admin99'
 const formatCurrency = value => `₹${value.toLocaleString()}`
 
 export default function AdminDashboard() {

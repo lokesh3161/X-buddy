@@ -8,7 +8,7 @@ set CLOUDFLARED=%AGENT_DIR%\cloudflared.exe
 set TUNNEL_LOG=%AGENT_DIR%\tunnel.log
 set TUNNEL_ERR=%AGENT_DIR%\tunnel_err.log
 set GIT=C:\Program Files\Git\bin\git.exe
-set GAS_URL=https://script.google.com/macros/s/AKfycby8ykWErzVD79TrafdArCmA6i9YipHVZOjw7zFWDjpL1e44HlKORx-GAnCuGGYgcmyB/exec
+set GAS_URL=https://script.google.com/macros/s/AKfycbzgScP1ogLW46Qzvv15idtPRY2xl973LFmadsbvL2ok2FRBjsDht4PCOmvsfaDrlPhf/exec
 
 echo.
 echo  X Buddy Master Startup
@@ -57,7 +57,7 @@ echo.
 
 :: ── STEP 3: Save tunnel URL to GAS (backup) ──────────────────────────────
 echo [3/5] Saving tunnel URL to GAS...
-powershell -NoProfile -Command "try { Invoke-WebRequest -Uri ('%GAS_URL%?action=setTunnelUrl&url='+[Uri]::EscapeDataString('%TUNNEL_URL%')) -UseBasicParsing | Out-Null; Write-Host '     Saved to GAS!' } catch { Write-Host '     Warning: Could not save to GAS' }"
+powershell -NoProfile -Command "try { Invoke-WebRequest -Uri ('%GAS_URL%?action=setTunnelUrl&key=XB_API_SECRET_KEY_2026&url='+[Uri]::EscapeDataString('%TUNNEL_URL%')) -UseBasicParsing | Out-Null; Write-Host '     Saved to GAS!' } catch { Write-Host '     Warning: Could not save to GAS' }"
 echo.
 
 :: ── STEP 4: Start Print Agent ─────────────────────────────────────────────

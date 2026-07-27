@@ -1,7 +1,7 @@
 import { useEffect, useState, useRef } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
+import { getOrderStatus } from '../utils/api'
 
-const API_URL = 'https://script.google.com/macros/s/AKfycby8ykWErzVD79TrafdArCmA6i9YipHVZOjw7zFWDjpL1e44HlKORx-GAnCuGGYgcmyB/exec'
 const OFFLINE_TIMEOUT_MS = 30000
 const POLL_INTERVAL_MS   = 5000
 
@@ -42,9 +42,8 @@ export default function PrintStatus({ fileInfo, settings, orderId, onReset, onVi
 
     async function checkStatus() {
       try {
-        const res  = await fetch(`${API_URL}?action=getOrderStatus&orderId=${orderId}`)
-        const data = await res.json()
-        if (data.success && data.printStatus) {
+        const data = await getOrderStatus(orderId)
+        if (data && data.success && data.printStatus) {
           const status = data.printStatus
           statusRef.current = status
           setLastChecked(new Date().toLocaleTimeString())

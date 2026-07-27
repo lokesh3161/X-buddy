@@ -1,6 +1,7 @@
-const API_URL    = 'https://script.google.com/macros/s/AKfycby8ykWErzVD79TrafdArCmA6i9YipHVZOjw7zFWDjpL1e44HlKORx-GAnCuGGYgcmyB/exec'
+const API_URL    = 'https://script.google.com/macros/s/AKfycbzgScP1ogLW46Qzvv15idtPRY2xl973LFmadsbvL2ok2FRBjsDht4PCOmvsfaDrlPhf/exec'
 const LOCAL_API  = 'http://localhost:3001'
 const GITHUB_RAW = 'https://raw.githubusercontent.com/lokesh3161/X-buddy/main/public/tunnel-url.txt'
+const API_KEY    = import.meta.env.VITE_API_KEY || 'XB_API_SECRET_KEY_2026'
 
 let _tunnelUrl = null
 let _tunnelFetchedAt = 0
@@ -27,7 +28,7 @@ async function getTunnelUrl() {
   } catch {}
 
   try {
-    const res = await fetch(`${API_URL}?action=getTunnelUrl`, { signal: AbortSignal.timeout(5000) })
+    const res = await fetch(`${API_URL}?action=getTunnelUrl&key=${API_KEY}`, { signal: AbortSignal.timeout(5000) })
     if (res.ok) {
       const data = await res.json()
       if (data?.url?.startsWith('https://')) { _tunnelUrl = data.url; _tunnelFetchedAt = now; return _tunnelUrl }
@@ -40,7 +41,8 @@ async function getTunnelUrl() {
 
 async function gasGet(params) {
   try {
-    const res = await fetch(`${API_URL}?${new URLSearchParams(params).toString()}`)
+    const searchParams = new URLSearchParams({ key: API_KEY, ...params })
+    const res = await fetch(`${API_URL}?${searchParams.toString()}`)
     return await res.json()
   } catch { return null }
 }
@@ -59,7 +61,7 @@ async function uploadPdfViaGas(orderId, fileName, pdfBase64) {
   for (let i = 0; i < total; i++) {
     const chunk = pdfBase64.slice(i * CHUNK_SIZE, (i + 1) * CHUNK_SIZE)
     const params = new URLSearchParams({
-      action: 'saveChunk', fileId: orderId, fileType: 'pdf',
+      action: 'saveChunk', key: API_KEY, fileId: orderId, fileType: 'pdf',
       index: String(i), total: String(total), chunk,
     })
     const res = await fetch(`${API_URL}?${params.toString()}`, { signal: AbortSignal.timeout(30000) })
@@ -68,7 +70,7 @@ async function uploadPdfViaGas(orderId, fileName, pdfBase64) {
     if (!data?.success) throw new Error(`Chunk ${i} rejected`)
   }
   const res = await fetch(`${API_URL}?${new URLSearchParams({
-    action: 'assemblePdf', fileId: orderId, fileName, mimeType: 'application/pdf',
+    action: 'assemblePdf', key: API_KEY, fileId: orderId, fileName, mimeType: 'application/pdf',
   }).toString()}`, { signal: AbortSignal.timeout(60000) })
   const data = await res.json()
   if (!data?.success || !data?.fileUrl) throw new Error('Assembly failed')
@@ -161,7 +163,7 @@ export async function submitOrder(orderData, { onStep } = {}) {
   let gasResult
   try {
     const res = await fetch(`${API_URL}?${new URLSearchParams({
-      action: 'saveOrder', orderId: clientOrderId,
+      action: 'saveOrder', key: API_KEY, orderId: clientOrderId,
       name: orderData.name, fileName: orderData.fileName,
       totalPages: String(orderData.totalPages), copies: String(orderData.copies),
       printType: orderData.printType || 'B&W', printSide: orderData.printSide || 'Single',
