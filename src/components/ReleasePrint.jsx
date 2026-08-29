@@ -42,16 +42,16 @@ function BoothLogin({ onSuccess }) {
       className="max-w-sm mx-auto px-4 py-20"
     >
       <div className="text-center mb-8">
-        <div className="w-16 h-16 rounded-full bg-purple-500/20 border border-purple-500/30 flex items-center justify-center mx-auto mb-4">
-          <span className="text-3xl">🔐</span>
+        <div className="w-16 h-16 rounded-full bg-orange-500/20 border border-orange-500/30 flex items-center justify-center mx-auto mb-4">
+          <span className="text-3xl">🏪</span>
         </div>
-        <h2 className="text-2xl font-bold text-white">Booth Access</h2>
-        <p className="text-gray-500 text-sm mt-1">Enter shopkeeper PIN to continue</p>
+        <h2 className="text-2xl font-bold text-white">Xerox Shop Terminal</h2>
+        <p className="text-gray-400 text-sm mt-1">Enter shopkeeper PIN to access print release</p>
       </div>
 
       <form onSubmit={handleSubmit} className="glass rounded-2xl p-6 space-y-4">
         <div>
-          <label className="text-gray-400 text-xs mb-1 block">PIN</label>
+          <label className="text-gray-400 text-xs mb-1 block">Staff PIN</label>
           <input
             ref={inputRef}
             type="password"
@@ -59,7 +59,7 @@ function BoothLogin({ onSuccess }) {
             onChange={(e) => { setPin(e.target.value); setError('') }}
             placeholder="••••"
             maxLength={8}
-            className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-white text-xl font-mono tracking-widest placeholder-gray-600 focus:outline-none focus:border-purple-500 transition-colors text-center"
+            className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-white text-xl font-mono tracking-widest placeholder-gray-600 focus:outline-none focus:border-[#F7931E] transition-colors text-center"
           />
         </div>
 
@@ -143,8 +143,8 @@ function BoothPanel({ onLogout }) {
       {/* Header */}
       <div className="flex items-center justify-between mb-8">
         <div>
-          <h2 className="text-2xl font-bold text-white">🖨️ Release Print</h2>
-          <p className="text-gray-500 text-sm mt-0.5">Enter student's Order ID to print</p>
+          <h2 className="text-2xl font-bold text-white">🖨️ Xerox Shop Terminal</h2>
+          <p className="text-gray-400 text-sm mt-0.5">Enter student's Order ID to print</p>
         </div>
         <button
           onClick={handleLogout}
@@ -157,7 +157,7 @@ function BoothPanel({ onLogout }) {
       {/* Form */}
       <form onSubmit={handleRelease} className="glass rounded-2xl p-6 space-y-4">
         <div>
-          <label className="text-gray-400 text-xs mb-1 block">Order ID</label>
+          <label className="text-gray-400 text-xs mb-1 block">Student Order ID</label>
           <input
             type="text"
             value={orderId}
@@ -165,7 +165,7 @@ function BoothPanel({ onLogout }) {
             placeholder="e.g. XB2045"
             maxLength={8}
             autoFocus
-            className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-white text-lg font-mono tracking-widest placeholder-gray-600 focus:outline-none focus:border-purple-500 transition-colors text-center"
+            className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-white text-lg font-mono tracking-widest placeholder-gray-600 focus:outline-none focus:border-[#F7931E] transition-colors text-center"
           />
         </div>
 

@@ -43,7 +43,7 @@ export default function NavigationDrawer({ isOpen, onClose, onNavigate, currentS
                       X Buddy
                     </span>
                     <span className="text-[10px] font-semibold text-slate-400 tracking-wider uppercase mt-0.5">
-                      Smart Kiosk Platform
+                      Smart Digital Printing
                     </span>
                   </div>
                 </div>
@@ -86,8 +86,8 @@ export default function NavigationDrawer({ isOpen, onClose, onNavigate, currentS
             {/* Footer inside Drawer */}
             <div className="p-4 border-t border-orange-100 bg-orange-50/30">
               <div className="p-3 bg-white border border-orange-100 rounded-xl text-center">
-                <p className="text-xs font-semibold text-[#222222]">X Buddy Print Kiosk</p>
-                <p className="text-[11px] text-gray-400 mt-0.5">Show Order ID to shopkeeper at booth to collect</p>
+                <p className="text-xs font-semibold text-[#222222]">Campus Xerox Ordering</p>
+                <p className="text-[11px] text-gray-400 mt-0.5">Show Order ID at the Xerox shop to collect</p>
               </div>
             </div>
           </motion.div>

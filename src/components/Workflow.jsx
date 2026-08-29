@@ -1,32 +1,32 @@
 import React from 'react'
 import { motion } from 'framer-motion'
-import { UploadCloud, CreditCard, Clock, QrCode, ArrowRight } from 'lucide-react'
+import { UploadCloud, Sliders, CreditCard, Store, ArrowRight } from 'lucide-react'
 
 export default function Workflow({ onStartPrint }) {
   const steps = [
     {
       step: 'Step 1',
-      title: 'Upload PDF',
-      description: 'Drag & drop documents directly from your phone or laptop',
+      title: 'Upload Document',
+      description: 'Upload PDF, documents, or images directly from your phone or laptop.',
       icon: UploadCloud,
     },
     {
       step: 'Step 2',
-      title: 'Secure Payment',
-      description: 'Pay instantly using UPI, PhonePe, Google Pay or Cards',
-      icon: CreditCard,
+      title: 'Configure Print',
+      description: 'Select B&W/Color, single/double side, custom pages & transparent pricing.',
+      icon: Sliders,
     },
     {
       step: 'Step 3',
-      title: 'Choose Collection Time',
-      description: 'Select instant pickup or schedule for later between classes',
-      icon: Clock,
+      title: 'Pay & Get Order ID',
+      description: 'Pay securely via UPI (PhonePe, GPay, Paytm) and generate your unique Order ID.',
+      icon: CreditCard,
     },
     {
       step: 'Step 4',
-      title: 'Collect via QR or ID',
-      description: 'Scan your pickup QR code at any nearby X Buddy booth',
-      icon: QrCode,
+      title: 'Collect at Xerox Shop',
+      description: 'Head to your campus Xerox shop, show your Order ID, and collect your fresh prints.',
+      icon: Store,
     },
   ]
 
@@ -44,7 +44,7 @@ export default function Workflow({ onStartPrint }) {
             viewport={{ once: true }}
             className="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full bg-orange-50 border border-orange-200 text-[#F7931E] text-xs font-bold uppercase tracking-wider mb-3"
           >
-            Simple 4-Step Process
+            Digital Ordering Workflow
           </motion.div>
           <motion.h2
             initial={{ opacity: 0, y: 15 }}
@@ -62,7 +62,7 @@ export default function Workflow({ onStartPrint }) {
             transition={{ delay: 0.2 }}
             className="text-slate-500 text-base md:text-lg mt-3"
           >
-            From document upload to automated kiosk collection in under 30 seconds.
+            From phone upload to Xerox shop collection in 4 seamless digital steps.
           </motion.p>
         </div>
 

@@ -49,9 +49,17 @@ export function saveOrder(order) {
     orderId: order.orderId,
     fileName: order.fileName || 'Document.pdf',
     totalPages: Number(order.totalPages) || 1,
+    printableCount: Number(order.printableCount) || Number(order.totalPages) || 1,
     copies: Number(order.copies) || 1,
     printType: order.printType === 'Color' ? 'Color' : 'B&W',
+    printSide: order.printSide || 'Single',
+    pageSize: order.pageSize || 'A4',
+    pageRange: order.pageRange || 'all',
+    customPages: order.customPages || '',
+    printingCost: Number(order.printingCost) || 0,
+    serviceFee: Number(order.serviceFee) || 0,
     amount: Number(order.amount) || 0,
+    phone: order.phone || '',
     savedAt: order.savedAt || Date.now(),
   }
 

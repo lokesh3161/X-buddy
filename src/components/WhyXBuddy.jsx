@@ -1,38 +1,38 @@
 import React from 'react'
 import { motion } from 'framer-motion'
-import { Clock, ShieldCheck, Wallet, CalendarClock, MonitorPlay, Layers } from 'lucide-react'
+import { Clock, ShieldCheck, Wallet, Store, Layers, CheckCircle2 } from 'lucide-react'
 
 export default function WhyXBuddy() {
   const features = [
     {
       icon: Clock,
-      title: 'No Waiting Queues',
-      description: 'Skip long lines between classes with zero waiting time at the kiosk.',
+      title: 'Zero Waiting Lines',
+      description: 'Order prints directly from your classroom or hostel and skip the crowd at the Xerox shop.',
     },
     {
-      icon: ShieldCheck,
-      title: 'Secure Collection',
-      description: 'Documents are printed and held in an encrypted locker until QR verification.',
+      icon: Store,
+      title: 'Xerox Shop Integration',
+      description: 'Connects directly with campus print shops for organized queue management and fast fulfillment.',
     },
     {
       icon: Wallet,
-      title: 'Digital Payments',
-      description: 'Seamless integration with UPI, GPay, PhonePe, and student wallet balances.',
+      title: 'Transparent Pricing',
+      description: 'Clear per-page rates and transparent service fees with instant digital UPI verification.',
     },
     {
-      icon: CalendarClock,
-      title: 'Smart Scheduling',
-      description: 'Order prints anytime online and collect at your chosen slot throughout the day.',
+      icon: ShieldCheck,
+      title: 'Live Order Tracking',
+      description: 'Track your print job status in real-time from Order Received to Ready for Collection.',
     },
     {
-      icon: MonitorPlay,
-      title: 'Advertisement Platform',
-      description: 'Dynamic digital displays for campus announcements and student brand promos.',
+      icon: CheckCircle2,
+      title: 'Custom Page Selection',
+      description: 'Print only specific pages or ranges with automated accurate page-level pricing calculations.',
     },
     {
       icon: Layers,
-      title: 'Modular Design',
-      description: 'Expandable industrial architecture ready for solar power & multi-tray printing.',
+      title: 'Academic Toolkit',
+      description: 'Generate resumes, leave letters, bonafide requests, and format lab manuals in seconds.',
     },
   ]
 
@@ -47,7 +47,7 @@ export default function WhyXBuddy() {
             viewport={{ once: true }}
             className="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full bg-orange-100/70 border border-orange-200 text-[#F7931E] text-xs font-bold uppercase tracking-wider mb-3"
           >
-            Next-Gen Advantage
+            Software Platform Advantage
           </motion.div>
           <motion.h2
             initial={{ opacity: 0, y: 15 }}
@@ -65,7 +65,7 @@ export default function WhyXBuddy() {
             transition={{ delay: 0.2 }}
             className="text-slate-500 text-base md:text-lg mt-3"
           >
-            Engineered to replace outdated print shops with a 24/7 autonomous smart campus infrastructure.
+            The digital layer that modernizes campus Xerox shops and eliminates printing hassle for students.
           </motion.p>
         </div>
 

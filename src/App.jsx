@@ -10,7 +10,7 @@ import PriceCard from './components/PriceCard'
 import PaymentModal from './components/PaymentModal'
 import PrintStatus from './components/PrintStatus'
 import AcademicToolkit from './components/AcademicToolkit'
-import { calcTotal } from './utils/pricing'
+import { calcPriceBreakdown } from './utils/pricing'
 import { parsePageRange } from './utils/pageRangeParser'
 import * as pdfjsLib from 'pdfjs-dist'
 pdfjsLib.GlobalWorkerOptions.workerSrc = new URL(
@@ -80,8 +80,8 @@ export default function App() {
     if (parsed.valid) selectedPages = parsed.selectedPages
   }
 
-  const total = fileInfo
-    ? calcTotal({
+  const priceBreakdown = fileInfo
+    ? calcPriceBreakdown({
         totalPages: fileInfo.totalPages,
         colorMode: settings.colorMode,
         isDoubleSide: settings.sideMode === 'double',
@@ -89,21 +89,30 @@ export default function App() {
         pageRange: settings.pageRange,
         selectedPages,
       })
-    : 0
+    : { totalAmount: 0, printingCost: 0, serviceFee: 0, printablePages: 0 }
 
+  const total = priceBreakdown.totalAmount
   const printableCount = settings.pageRange === 'custom' ? selectedPages.length : (fileInfo?.totalPages || 1)
 
   const orderMeta = fileInfo
     ? {
-        fileName: fileInfo.name, totalPages: fileInfo.totalPages,
+        fileName: fileInfo.name,
+        totalPages: fileInfo.totalPages,
         copies: settings.copies,
         printType: settings.colorMode === 'color' ? 'Color' : 'B&W',
         printSide: settings.sideMode === 'double' ? 'Double' : 'Single',
-        pageSize: settings.pageSize, orientation: settings.orientation,
-        margins: settings.margins, pageRange: settings.pageRange,
-        customPages: settings.customPages, selectedPages, printableCount,
+        pageSize: settings.pageSize,
+        orientation: settings.orientation,
+        margins: settings.margins,
+        pageRange: settings.pageRange,
+        customPages: settings.customPages,
+        selectedPages,
+        printableCount,
         imageFit: settings.imageFit,
-        amount: total, pdfFile: fileInfo.file,
+        printingCost: priceBreakdown.printingCost,
+        serviceFee: priceBreakdown.serviceFee,
+        amount: total,
+        pdfFile: fileInfo.file,
         requiresAgent: fileInfo.requiresAgent || false,
       }
     : null
@@ -177,7 +186,7 @@ export default function App() {
                   X Buddy
                 </span>
                 <span className="text-[10px] font-semibold text-slate-400 tracking-wider uppercase">
-                  Smart Kiosk Platform
+                  Smart Digital Printing
                 </span>
               </div>
             </button>
@@ -237,7 +246,7 @@ export default function App() {
           {step === STEP.HERO && (
             <motion.div key="hero" exit={{ opacity: 0, y: -20 }} transition={{ duration: 0.3 }}>
               {/* Hero Section */}
-              <Hero onGetStarted={() => setStep(STEP.UPLOAD)} onResumeBuilder={() => setStep(STEP.RESUME)} />
+              <Hero onGetStarted={() => setStep(STEP.UPLOAD)} onResumeBuilder={() => setStep(STEP.RESUME)} onMyOrders={() => setStep(STEP.MY_ORDERS)} />
               
               {/* Timeline Section */}
               <div id="how-it-works">
@@ -268,10 +277,14 @@ export default function App() {
                     </div>
                     <div>
                       <p className="text-slate-900 font-bold text-sm">X Buddy</p>
-                      <p className="text-slate-400 text-xs">Next-Generation Smart Campus Infrastructure Platform</p>
+                      <p className="text-slate-400 text-xs">Digital Print Ordering Platform for Campus Xerox Shops</p>
                     </div>
                   </div>
-                  <div className="flex items-center gap-2 text-xs text-slate-400">
+                  <div className="flex items-center gap-4 text-xs text-slate-400">
+                    <a href="/admin" className="text-slate-500 hover:text-[#F7931E] font-medium transition-colors">
+                      🏪 Xerox Shop Staff Dashboard
+                    </a>
+                    <span className="w-1 h-1 rounded-full bg-[#F7931E]" />
                     <span>Powered by <strong className="text-slate-700 font-semibold">NextGen Labs</strong></span>
                     <span className="w-1 h-1 rounded-full bg-[#F7931E]" />
                     <span>© {new Date().getFullYear()} All Rights Reserved.</span>

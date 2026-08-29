@@ -27,9 +27,9 @@ export default function TrustStats() {
     },
     {
       icon: Sun,
-      title: 'Solar',
-      label: 'Ready Kiosks',
-      description: 'Eco-friendly smart power supply compatible',
+      title: 'Zero Wait',
+      label: 'Campus Queues',
+      description: 'Order in advance and skip peak-hour Xerox shop lines',
       tag: null,
     },
     {

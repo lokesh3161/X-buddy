@@ -5,33 +5,67 @@ export const RATES = {
 }
 
 /**
+ * X Buddy Service Fee Slabs:
+ * ₹1–₹20   → +₹1
+ * ₹21–₹40  → +₹2
+ * ₹41–₹80  → +₹3
+ * ₹81–₹120 → +₹5
+ * ₹121–₹200 → +₹7
+ * ₹201+    → +₹10
+ */
+export function calcServiceFee(printingCost) {
+  const cost = Number(printingCost) || 0
+  if (cost <= 0) return 0
+  if (cost <= 20) return 1
+  if (cost <= 40) return 2
+  if (cost <= 80) return 3
+  if (cost <= 120) return 5
+  if (cost <= 200) return 7
+  return 10
+}
+
+/**
  * Calculate effective pages based on double-side setting.
- * Double side: ceil(pages / 2) sheets, but you still pay per page printed.
- * For cost: double side means fewer sheets but same pages — price stays per page.
- * Common shop logic: double side = same page count, just printed both sides.
- * So price = pages × rate × copies (double side doesn't reduce cost, just paper).
- * 
- * However per the spec: "Double side: Reduce page count calculation accordingly"
- * → double side halves the effective page count for billing.
  */
 export function calcEffectivePages(totalPages, isDoubleSide) {
   if (isDoubleSide) return Math.ceil(totalPages / 2)
   return totalPages
 }
 
-export function calcTotal({ totalPages, colorMode, isDoubleSide, copies, pageRange, selectedPages }) {
-  const pagesToCharge = pageRange === 'custom'
+export function calcPriceBreakdown({ totalPages, colorMode, isDoubleSide, copies = 1, pageRange, selectedPages }) {
+  const numCopies = Math.max(1, Number(copies) || 1)
+  const isCustom = pageRange === 'custom'
+  const printablePages = isCustom
     ? (Array.isArray(selectedPages) ? selectedPages.length : (selectedPages?.length || 0))
-    : totalPages
-  const effectivePages = calcEffectivePages(pagesToCharge, isDoubleSide)
+    : (Number(totalPages) || 0)
+
+  const effectivePages = calcEffectivePages(printablePages, isDoubleSide)
   const ratePerPage = colorMode === 'color' ? RATES.color : RATES.bw
-  return effectivePages * ratePerPage * copies
+  const printingCost = effectivePages * ratePerPage * numCopies
+  const serviceFee = calcServiceFee(printingCost)
+  const totalAmount = printingCost + serviceFee
+
+  return {
+    printablePages,
+    effectivePages,
+    ratePerPage,
+    copies: numCopies,
+    printingCost,
+    serviceFee,
+    totalAmount,
+  }
+}
+
+export function calcTotal(params) {
+  const { totalAmount } = calcPriceBreakdown(params)
+  return totalAmount
 }
 
 // Estimate print time: ~8 seconds per page (single side), ~12s double side
-export function estimatePrintTime(totalPages, isDoubleSide, copies) {
+export function estimatePrintTime(totalPages, isDoubleSide, copies = 1) {
   const secsPerPage = isDoubleSide ? 6 : 8
-  const totalSecs = totalPages * copies * secsPerPage
+  const totalSecs = (Number(totalPages) || 1) * (Number(copies) || 1) * secsPerPage
   if (totalSecs < 60) return `~${totalSecs} seconds`
   return `~${Math.ceil(totalSecs / 60)} minute${Math.ceil(totalSecs / 60) > 1 ? 's' : ''}`
 }
+

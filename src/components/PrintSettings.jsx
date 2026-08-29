@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { parsePageRange } from '../utils/pageRangeParser'
-import { calcTotal } from '../utils/pricing'
+import { calcPriceBreakdown } from '../utils/pricing'
 
 function OptionButton({ active, onClick, children }) {
   return (
@@ -42,8 +42,8 @@ export default function PrintSettings({ fileInfo, settings, onChange }) {
     ? parsePageRange(customPages, fileInfo.totalPages)
     : { valid: false, error: 'Please enter page numbers or ranges.' }
 
-  const customTotal = customParse.valid
-    ? calcTotal({
+  const customBreakdown = customParse.valid
+    ? calcPriceBreakdown({
         totalPages: fileInfo.totalPages,
         colorMode,
         isDoubleSide: sideMode === 'double',
@@ -51,7 +51,7 @@ export default function PrintSettings({ fileInfo, settings, onChange }) {
         pageRange: 'custom',
         selectedPages: customParse.selectedPages,
       })
-    : 0
+    : null
 
   return (
     <motion.section initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} className="max-w-2xl mx-auto px-4 py-4">
@@ -99,7 +99,7 @@ export default function PrintSettings({ fileInfo, settings, onChange }) {
             <OptionButton active={sideMode === 'double'} onClick={() => set('sideMode', 'double')}>📋 Double Side</OptionButton>
           </div>
           {sideMode === 'double' && (
-            <p className="text-[#F78C25] text-xs mt-2">✓ Double side halves your page count — saves cost!</p>
+            <p className="text-[#F78C25] text-xs mt-2">✓ Double side prints both sides — halves paper sheets!</p>
           )}
         </SettingCard>
 
@@ -215,7 +215,7 @@ export default function PrintSettings({ fileInfo, settings, onChange }) {
                       {customPages.trim().length > 0 && !customParse.valid && (
                         <p className="text-rose-500 text-xs font-medium">{customParse.error}</p>
                       )}
-                      {customPages.trim().length > 0 && customParse.valid && (
+                      {customPages.trim().length > 0 && customParse.valid && customBreakdown && (
                         <div className="p-3.5 bg-orange-50/80 border border-orange-200 rounded-xl text-xs space-y-1.5 text-gray-700 mt-2">
                           <div className="flex justify-between">
                             <span className="text-gray-500">Selected Pages:</span>
@@ -226,16 +226,24 @@ export default function PrintSettings({ fileInfo, settings, onChange }) {
                             <span className="font-semibold text-gray-800">× {copies}</span>
                           </div>
                           <div className="flex justify-between">
-                            <span className="text-gray-500">Total Printable Pages:</span>
+                            <span className="text-gray-500">Printable Pages:</span>
                             <span className="font-semibold text-gray-800">{customParse.selectedPages.length} × {copies} = {customParse.selectedPages.length * copies}</span>
                           </div>
+                          <div className="flex justify-between">
+                            <span className="text-gray-500">Printing Cost:</span>
+                            <span className="font-semibold text-gray-800">₹{customBreakdown.printingCost}</span>
+                          </div>
+                          <div className="flex justify-between">
+                            <span className="text-gray-500">X Buddy Service Fee:</span>
+                            <span className="font-semibold text-gray-800">+₹{customBreakdown.serviceFee}</span>
+                          </div>
                           <div className="flex justify-between border-t border-orange-200 pt-2 mt-1">
-                            <span className="font-medium text-gray-800">Estimated Cost:</span>
-                            <span className="font-bold text-[#F78C25] text-sm">₹{customTotal}</span>
+                            <span className="font-medium text-gray-800 font-bold">Total:</span>
+                            <span className="font-bold text-[#F78C25] text-sm">₹{customBreakdown.totalAmount}</span>
                           </div>
                         </div>
                       )}
-                      <p className="text-gray-400 text-xs mt-1">Enter page numbers or ranges separated by commas</p>
+                      <p className="text-gray-400 text-xs mt-1">Enter page numbers or ranges separated by commas (e.g. 1-5, 8, 10-12)</p>
                     </div>
                   )}
                 </SettingCard>
@@ -247,3 +255,4 @@ export default function PrintSettings({ fileInfo, settings, onChange }) {
     </motion.section>
   )
 }
+

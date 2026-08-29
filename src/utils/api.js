@@ -146,16 +146,61 @@ export async function validateAndRelease(orderId) {
   return { success: false, error: 'Could not connect to print agent. Is it running?' }
 }
 
+export async function updateOrderStatus(orderId, printStatus) {
+  // Try local print agent first if running
+  try {
+    const res = await fetch(`${LOCAL_API}/update-order-status`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ orderId, printStatus }),
+      signal: AbortSignal.timeout(2000),
+    })
+    if (res.ok) {
+      const data = await res.json()
+      if (data?.success) return data
+    }
+  } catch {}
+
+  // Try tunnel URL if available
+  const tunnelUrl = await getTunnelUrl()
+  if (tunnelUrl) {
+    try {
+      const res = await fetch(`${tunnelUrl}/update-order-status`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ orderId, printStatus }),
+        signal: AbortSignal.timeout(4000),
+      })
+      if (res.ok) {
+        const data = await res.json()
+        if (data?.success) return data
+      }
+    } catch {}
+  }
+
+  // Fallback to Google Apps Script
+  return await gasGet({ action: 'updateOrderStatus', orderId, printStatus })
+}
+
+export async function updatePaymentStatus(orderId, paymentStatus) {
+  return await gasGet({ action: 'updatePaymentStatus', orderId, paymentStatus })
+}
+
 export async function submitOrder(orderData, { onStep } = {}) {
   const clientOrderId = 'XB' + String(Math.floor(1000 + Math.random() * 9000))
 
   const printSettings = {
-    copies:      orderData.copies,
-    printSide:   orderData.printSide   || 'Single',
-    colorMode:   orderData.printType   || 'B&W',
-    pageSize:    orderData.pageSize    || 'A4',
-    orientation: orderData.orientation || 'portrait',
-    pageRange:   orderData.pageRange   || 'all',
+    copies:        orderData.copies,
+    printSide:     orderData.printSide     || 'Single',
+    colorMode:     orderData.printType     || 'B&W',
+    pageSize:      orderData.pageSize      || 'A4',
+    orientation:   orderData.orientation   || 'portrait',
+    pageRange:     orderData.pageRange     || 'all',
+    customPages:   orderData.customPages   || '',
+    printableCount: orderData.printableCount || orderData.totalPages || 1,
+    selectedPages: orderData.selectedPages || [],
+    printingCost:  orderData.printingCost  || 0,
+    serviceFee:    orderData.serviceFee    || 0,
   }
 
   // ── Step 1: Save order to GAS ─────────────────────────────────────────────
@@ -168,7 +213,10 @@ export async function submitOrder(orderData, { onStep } = {}) {
       totalPages: String(orderData.totalPages), copies: String(orderData.copies),
       printType: orderData.printType || 'B&W', printSide: orderData.printSide || 'Single',
       pageSize: orderData.pageSize || 'A4', orientation: orderData.orientation || 'portrait',
-      amount: String(orderData.amount), transactionId: orderData.transactionId,
+      amount: String(orderData.amount),
+      printingCost: String(orderData.printingCost || ''),
+      serviceFee: String(orderData.serviceFee || ''),
+      transactionId: orderData.transactionId,
       pageRange: orderData.pageRange || 'all',
       customPages: orderData.customPages || '',
       printableCount: String(orderData.printableCount || orderData.totalPages),
@@ -186,7 +234,7 @@ export async function submitOrder(orderData, { onStep } = {}) {
   // ── Step 2: Deliver PDF to agent ──────────────────────────────────────────
   onStep?.('print_agent')
 
-  // Try local (kiosk same machine)
+  // Try local (xerox shop agent machine)
   try {
     if (await postToAgent(LOCAL_API, orderId, orderData, printSettings))
       return { success: true, orderId, message: null }
@@ -217,6 +265,7 @@ export async function submitOrder(orderData, { onStep } = {}) {
     }
     return { success: true, orderId, message: null }
   } catch {
-    return { success: true, orderId, message: 'Order saved! Show your Order ID to the shopkeeper.' }
+    return { success: true, orderId, message: 'Order saved! Show your Order ID at the Xerox shop to collect your documents.' }
   }
 }
+

@@ -1,144 +1,71 @@
 import { useEffect, useMemo, useState } from 'react'
-import { motion } from 'framer-motion'
-import {
-  AreaChart,
-  Area,
-  BarChart,
-  Bar,
-  PieChart,
-  Pie,
-  Cell,
-  XAxis,
-  YAxis,
-  CartesianGrid,
-  Tooltip,
-  ResponsiveContainer,
-  Legend,
-} from 'recharts'
+import { motion, AnimatePresence } from 'framer-motion'
 import {
   TrendingUp,
   DollarSign,
   Printer,
   Clock3,
-  ShieldCheck,
-  Server,
-  PauseCircle,
+  Search,
   RefreshCcw,
-  Lock,
-  CheckCircle,
+  CheckCircle2,
   AlertTriangle,
-  CircleDot,
-  ArrowUpRight,
-  ArrowDownRight,
+  FileText,
+  Store,
+  Phone,
+  Calendar,
+  Layers,
+  Check,
+  X,
+  Play,
+  PackageCheck,
+  Eye,
+  Download,
+  Filter,
 } from 'lucide-react'
 import {
   fetchAdminOrders,
   fetchAdminStats,
-  fetchBoothStatus,
   fetchHealthStatus,
+  updateOrderStatus,
+  validateAndRelease,
 } from '../utils/api'
 
-const STATUS_STYLES = {
-  Waiting: 'bg-amber-500/10 text-amber-300',
-  Released: 'bg-sky-500/10 text-sky-300',
-  Printing: 'bg-violet-500/10 text-violet-300',
-  Printed: 'bg-emerald-500/10 text-emerald-300',
-  Failed: 'bg-rose-500/10 text-rose-300',
+const STATUS_BADGES = {
+  'Pending':               'bg-amber-500/15 text-amber-300 border border-amber-500/30',
+  'Payment Submitted':     'bg-amber-500/15 text-amber-300 border border-amber-500/30',
+  'Order Received':        'bg-blue-500/15 text-blue-300 border border-blue-500/30',
+  'Accepted':              'bg-blue-500/15 text-blue-300 border border-blue-500/30',
+  'Waiting':               'bg-blue-500/15 text-blue-300 border border-blue-500/30',
+  'Printing':              'bg-violet-500/15 text-violet-300 border border-violet-500/30 animate-pulse',
+  'Ready for Collection':  'bg-emerald-500/15 text-emerald-300 border border-emerald-500/30 font-bold',
+  'Ready':                 'bg-emerald-500/15 text-emerald-300 border border-emerald-500/30 font-bold',
+  'Collected':             'bg-slate-500/15 text-slate-300 border border-slate-500/30',
+  'Printed':               'bg-emerald-500/15 text-emerald-300 border border-emerald-500/30',
+  'Cancelled':             'bg-rose-500/15 text-rose-300 border border-rose-500/30',
+  'Failed':                'bg-rose-500/15 text-rose-300 border border-rose-500/30',
 }
 
 const INITIAL_ORDERS = [
-  { id: 'XBD-1082', fileName: 'Resume_Design.pdf', type: 'Resume', pages: 4, amount: 72, booth: 'Booth 01', status: 'Printed', time: '09:18 AM' },
-  { id: 'XBD-1083', fileName: 'Leave_Letter.pdf', type: 'Leave Letter', pages: 2, amount: 28, booth: 'Booth 03', status: 'Printing', time: '09:24 AM' },
-  { id: 'XBD-1084', fileName: 'Bonafide.pdf', type: 'Bonafide', pages: 1, amount: 14, booth: 'Booth 02', status: 'Waiting', time: '09:26 AM' },
-  { id: 'XBD-1085', fileName: 'Project_Assignment.pdf', type: 'Assignment', pages: 6, amount: 96, booth: 'Booth 01', status: 'Failed', time: '09:32 AM' },
-  { id: 'XBD-1086', fileName: 'Research_Paper.pdf', type: 'Manual PDF', pages: 12, amount: 174, booth: 'Booth 04', status: 'Released', time: '09:45 AM' },
-  { id: 'XBD-1087', fileName: 'Internship_Letter.pdf', type: 'Internship', pages: 3, amount: 45, booth: 'Booth 02', status: 'Waiting', time: '09:51 AM' },
-  { id: 'XBD-1088', fileName: 'Lab_Report.pdf', type: 'Lab', pages: 5, amount: 75, booth: 'Booth 03', status: 'Printed', time: '10:02 AM' },
-  { id: 'XBD-1089', fileName: 'Resume_Bio.pdf', type: 'Resume', pages: 2, amount: 30, booth: 'Booth 01', status: 'Printing', time: '10:08 AM' },
+  { id: 'XB-1082', studentName: 'Rahul Verma', phone: '9876543210', fileName: 'Resume_Engineering.pdf', pages: 2, copies: 3, printType: 'Color', printSide: 'Single', customPages: '', amount: 33, paymentStatus: 'Paid', status: 'Ready for Collection', time: '09:18 AM', date: '2026-08-29', pdfUrl: '' },
+  { id: 'XB-1083', studentName: 'Sneha Patel', phone: '9845012345', fileName: 'Leave_Application.pdf', pages: 1, copies: 1, printType: 'B&W', printSide: 'Single', customPages: '', amount: 3, paymentStatus: 'Paid', status: 'Printing', time: '09:24 AM', date: '2026-08-29', pdfUrl: '' },
+  { id: 'XB-1084', studentName: 'Arjun Reddy', phone: '9123456789', fileName: 'Lab_Report_Final.pdf', pages: 18, copies: 1, printType: 'B&W', printSide: 'Double', customPages: '', amount: 20, paymentStatus: 'Paid', status: 'Accepted', time: '09:26 AM', date: '2026-08-29', pdfUrl: '' },
+  { id: 'XB-1085', studentName: 'Pooja Sharma', phone: '9765432109', fileName: 'Project_Documentation.pdf', pages: 45, copies: 2, printType: 'B&W', printSide: 'Double', customPages: '1-10, 20-25', amount: 35, paymentStatus: 'Paid', status: 'Pending', time: '09:32 AM', date: '2026-08-29', pdfUrl: '' },
+  { id: 'XB-1086', studentName: 'Vikas Gupta', phone: '9988776655', fileName: 'Research_Paper.pdf', pages: 12, copies: 1, printType: 'Color', printSide: 'Single', customPages: '', amount: 63, paymentStatus: 'Paid', status: 'Collected', time: '09:45 AM', date: '2026-08-29', pdfUrl: '' },
 ]
-
-const INITIAL_BOOTHS = [
-  { name: 'Booth 01', online: true, queue: 2, connected: true, printed: 48, revenue: 1092, paused: false, locked: false },
-  { name: 'Booth 02', online: true, queue: 1, connected: true, printed: 33, revenue: 732, paused: false, locked: false },
-  { name: 'Booth 03', online: true, queue: 3, connected: true, printed: 57, revenue: 1356, paused: false, locked: false },
-  { name: 'Booth 04', online: false, queue: 0, connected: false, printed: 22, revenue: 478, paused: true, locked: false },
-]
-
-const DAY_REVENUE = [
-  { day: 'Mon', revenue: 920 },
-  { day: 'Tue', revenue: 1140 },
-  { day: 'Wed', revenue: 980 },
-  { day: 'Thu', revenue: 1190 },
-  { day: 'Fri', revenue: 1340 },
-  { day: 'Sat', revenue: 1560 },
-  { day: 'Sun', revenue: 1820 },
-]
-
-const HOUR_ORDERS = [
-  { hour: '6 AM', orders: 8 },
-  { hour: '8 AM', orders: 12 },
-  { hour: '10 AM', orders: 20 },
-  { hour: '12 PM', orders: 18 },
-  { hour: '2 PM', orders: 22 },
-  { hour: '4 PM', orders: 26 },
-  { hour: '6 PM', orders: 19 },
-  { hour: '8 PM', orders: 14 },
-]
-
-const DOC_USAGE = [
-  { name: 'Resume', value: 34, color: '#A855F7' },
-  { name: 'Leave Letter', value: 22, color: '#22D3EE' },
-  { name: 'Bonafide', value: 16, color: '#F59E0B' },
-  { name: 'Assignments', value: 18, color: '#34D399' },
-  { name: 'Manual PDFs', value: 10, color: '#F472B6' },
-]
-
-const PRINT_TYPE_DATA = [
-  { name: 'B&W', value: 38, color: '#A78BFA' },
-  { name: 'Color', value: 62, color: '#38BDF8' },
-]
-
-const HEALTH_CHECKS = [
-  { name: 'Print Agent', status: 'online' },
-  { name: 'Local Server', status: 'online' },
-  { name: 'Google Sheets', status: 'online' },
-  { name: 'Cloudflare Tunnel', status: 'online' },
-  { name: 'Printer Connectivity', status: 'online' },
-]
-
-const getBadge = status => {
-  if (status === 'online') return 'bg-emerald-500/15 text-emerald-300'
-  if (status === 'offline') return 'bg-rose-500/15 text-rose-300'
-  return 'bg-slate-500/15 text-slate-300'
-}
 
 const ADMIN_PASSWORD = import.meta.env.VITE_ADMIN_PASSWORD || 'Secur3#Admin99'
-const formatCurrency = value => `₹${value.toLocaleString()}`
+const formatCurrency = value => `₹${Number(value || 0).toLocaleString()}`
 
 export default function AdminDashboard() {
   const [orders, setOrders] = useState(INITIAL_ORDERS)
-  const [booths, setBooths] = useState(INITIAL_BOOTHS)
-  const [health, setHealth] = useState(HEALTH_CHECKS)
-  const [refreshTick, setRefreshTick] = useState(0)
-  const [realConnected, setRealConnected] = useState(false)
-  const [realError, setRealError] = useState('')
+  const [searchQuery, setSearchQuery] = useState('')
+  const [statusFilter, setStatusFilter] = useState('ALL')
+  const [selectedOrder, setSelectedOrder] = useState(null)
   const [adminPassword, setAdminPassword] = useState('')
   const [isAuthorized, setIsAuthorized] = useState(false)
   const [authError, setAuthError] = useState('')
-
-  const stats = useMemo(() => {
-    const total = orders.length
-    const revenue = orders.reduce((sum, order) => sum + order.amount, 0)
-    const pending = orders.filter(order => order.status === 'Waiting').length
-    const printed = orders.filter(order => order.status === 'Printed').length
-    const failed = orders.filter(order => order.status === 'Failed').length
-    const active = booths.filter(booth => booth.online).length
-    return { total, revenue, pending, printed, failed, active }
-  }, [orders, booths])
-
-  const busiestHours = useMemo(() => {
-    return HOUR_ORDERS.slice().sort((a, b) => b.orders - a.orders).slice(0, 3)
-  }, [])
+  const [realConnected, setRealConnected] = useState(false)
+  const [actionLoading, setActionLoading] = useState(null)
 
   useEffect(() => {
     if (typeof window !== 'undefined') {
@@ -162,459 +89,545 @@ export default function AdminDashboard() {
     setAuthError('Incorrect password. Please try again.')
   }
 
-  const handleAdminPasswordChange = (event) => {
-    setAdminPassword(event.target.value)
-    if (authError) setAuthError('')
-  }
-
+  // Load real orders from backend
   useEffect(() => {
     if (!isAuthorized) return
     let isMounted = true
+
     async function loadAdminData() {
       try {
-        const [ordersRes, statsRes, boothsRes, healthRes] = await Promise.all([
+        const [ordersRes] = await Promise.all([
           fetchAdminOrders(),
-          fetchAdminStats(),
-          fetchBoothStatus(),
-          fetchHealthStatus(),
         ])
 
         if (!isMounted) return
 
-        const hasOrders = ordersRes?.success && Array.isArray(ordersRes.orders)
-        const hasStats = statsRes?.success && typeof statsRes.totalOrders === 'number'
-        const hasBooths = boothsRes?.success && Array.isArray(boothsRes.booths)
-        const hasHealth = healthRes?.success && Array.isArray(healthRes.checks)
-        const hasAnyData = hasOrders || hasStats || hasBooths || hasHealth
-
-        if (hasAnyData) {
+        if (ordersRes?.success && Array.isArray(ordersRes.orders) && ordersRes.orders.length > 0) {
           setRealConnected(true)
-          setRealError('')
-        } else {
-          setRealConnected(false)
-          setRealError('Connected backend did not return dashboard data. Confirm the admin service is available.')
+          const formatted = ordersRes.orders.map(o => ({
+            id: o.id || o.orderId,
+            studentName: o.name || 'Student',
+            phone: o.name?.match(/\d{10}/) ? o.name : (o.phone || ''),
+            fileName: o.fileName || 'Document.pdf',
+            pages: Number(o.pages || o.totalPages || 1),
+            copies: Number(o.copies || 1),
+            printType: o.printType || (o.colorMode === 'color' ? 'Color' : 'B&W'),
+            printSide: o.printSide || 'Single',
+            customPages: o.customPages || '',
+            amount: Number(o.amount || 0),
+            paymentStatus: o.paymentStatus || 'Paid',
+            status: o.status || o.printStatus || 'Accepted',
+            time: o.time || o.timestamp || new Date().toLocaleTimeString(),
+            date: o.date || new Date().toISOString().split('T')[0],
+            pdfUrl: o.pdfUrl || '',
+          }))
+          setOrders(formatted)
         }
-
-        if (hasOrders) setOrders(ordersRes.orders)
-        if (hasStats) {
-          // use dynamic stats if available
-          setRealError('')
-        }
-        if (hasBooths) setBooths(boothsRes.booths)
-        if (hasHealth) setHealth(healthRes.checks)
-      } catch (error) {
-        if (!isMounted) return
-        setRealError('Unable to load admin data from backend. Using fallback mode.')
+      } catch {
+        // Fallback gracefully
       }
     }
 
     loadAdminData()
-    const adminInterval = setInterval(loadAdminData, 8000)
+    const interval = setInterval(loadAdminData, 6000)
     return () => {
       isMounted = false
-      clearInterval(adminInterval)
+      clearInterval(interval)
     }
   }, [isAuthorized])
 
-  useEffect(() => {
-    if (!isAuthorized) return
-    const interval = setInterval(() => {
-      setRefreshTick(t => t + 1)
+  // Statistics calculation
+  const stats = useMemo(() => {
+    const total = orders.length
+    const revenue = orders.reduce((sum, o) => sum + (Number(o.amount) || 0), 0)
+    const pending = orders.filter(o => o.status === 'Pending' || o.status === 'Payment Submitted' || o.status === 'Waiting' || o.status === 'Accepted' || o.status === 'Order Received').length
+    const printing = orders.filter(o => o.status === 'Printing').length
+    const ready = orders.filter(o => o.status === 'Ready for Collection' || o.status === 'Ready' || o.status === 'Printed').length
+    const collected = orders.filter(o => o.status === 'Collected').length
+    return { total, revenue, pending, printing, ready, collected }
+  }, [orders])
 
-      setOrders(prev => {
-        const statusOrder = prev.map(order => {
-          if (order.status === 'Printing' && Math.random() > 0.6) {
-            return { ...order, status: 'Printed' }
-          }
-          if (order.status === 'Waiting' && Math.random() > 0.65) {
-            return { ...order, status: 'Printing' }
-          }
-          if (order.status === 'Released' && Math.random() > 0.8) {
-            return { ...order, status: 'Printing' }
-          }
-          return order
-        })
+  // Filtered & Searched Orders (newest first)
+  const filteredOrders = useMemo(() => {
+    return orders.filter(order => {
+      const q = searchQuery.toLowerCase().trim()
+      const matchSearch = !q ||
+        (order.id && order.id.toLowerCase().includes(q)) ||
+        (order.fileName && order.fileName.toLowerCase().includes(q)) ||
+        (order.phone && order.phone.toLowerCase().includes(q)) ||
+        (order.studentName && order.studentName.toLowerCase().includes(q)) ||
+        (order.date && order.date.toLowerCase().includes(q))
 
-        if (!realConnected && Math.random() > 0.7) {
-          const nextId = `XBD-${Math.floor(1090 + Math.random() * 90)}`
-          const types = ['Resume', 'Leave Letter', 'Bonafide', 'Assignment', 'Manual PDF']
-          const type = types[Math.floor(Math.random() * types.length)]
-          const pageCount = 1 + Math.floor(Math.random() * 8)
-          const newest = {
-            id: nextId,
-            fileName: `${type.replace(' ', '_')}_${nextId}.pdf`,
-            type,
-            pages: pageCount,
-            amount: pageCount * 14,
-            booth: booths[Math.floor(Math.random() * booths.length)].name,
-            status: 'Waiting',
-            time: `${10 + Math.floor(Math.random() * 3)}:${10 + Math.floor(Math.random() * 50)} AM`,
-          }
-          return [newest, ...statusOrder].slice(0, 12)
+      if (!matchSearch) return false
+
+      if (statusFilter === 'ALL') return true
+      if (statusFilter === 'PENDING') return order.status === 'Pending' || order.status === 'Payment Submitted' || order.status === 'Waiting' || order.status === 'Accepted' || order.status === 'Order Received'
+      if (statusFilter === 'PRINTING') return order.status === 'Printing'
+      if (statusFilter === 'READY') return order.status === 'Ready for Collection' || order.status === 'Ready' || order.status === 'Printed'
+      if (statusFilter === 'COLLECTED') return order.status === 'Collected'
+      if (statusFilter === 'CANCELLED') return order.status === 'Cancelled' || order.status === 'Failed'
+      return true
+    })
+  }, [orders, searchQuery, statusFilter])
+
+  // Status transition handler
+  async function handleStatusChange(orderId, newStatus) {
+    setActionLoading(orderId)
+    try {
+      setOrders(prev => prev.map(o => o.id === orderId ? { ...o, status: newStatus } : o))
+      if (selectedOrder && selectedOrder.id === orderId) {
+        setSelectedOrder(prev => ({ ...prev, status: newStatus }))
+      }
+      await updateOrderStatus(orderId, newStatus)
+    } catch (err) {
+      console.error('Failed to update status:', err)
+    } finally {
+      setActionLoading(null)
+    }
+  }
+
+  // Print triggering handler
+  async function handlePrintTrigger(order) {
+    setActionLoading(order.id)
+    try {
+      handleStatusChange(order.id, 'Printing')
+      const res = await validateAndRelease(order.id)
+      if (res && res.success) {
+        handleStatusChange(order.id, 'Ready for Collection')
+      } else {
+        // If agent not running, allow staff to print via browser
+        if (order.pdfUrl) {
+          window.open(order.pdfUrl, '_blank')
         }
-
-        return statusOrder
-      })
-
-      setBooths(prev => prev.map(booth => {
-        const queue = Math.max(0, booth.queue + (Math.random() > 0.55 ? -1 : 1))
-        return {
-          ...booth,
-          queue: Math.min(6, queue),
-          connected: booth.online ? booth.connected : false,
-        }
-      }))
-
-      setHealth(prev => prev.map(check => {
-        if (!realConnected && Math.random() > 0.9) {
-          const nextStatus = check.status === 'online' ? 'offline' : 'online'
-          return { ...check, status: nextStatus }
-        }
-        return check
-      }))
-    }, 4500)
-
-    return () => clearInterval(interval)
-  }, [booths, realConnected])
-
-  const handleRetry = id => {
-    setOrders(prev => prev.map(order => order.id === id ? { ...order, status: 'Waiting' } : order))
-  }
-
-  const handleCancel = id => {
-    setOrders(prev => prev.map(order => order.id === id ? { ...order, status: 'Failed' } : order))
-  }
-
-  const handleReprint = id => {
-    setOrders(prev => prev.map(order => order.id === id ? { ...order, status: 'Printing' } : order))
-  }
-
-  const handlePauseBooth = name => {
-    setBooths(prev => prev.map(booth => booth.name === name ? { ...booth, online: !booth.online, paused: !booth.paused } : booth))
-  }
-
-  const handleRestartBooth = name => {
-    setBooths(prev => prev.map(booth => booth.name === name ? { ...booth, online: true, connected: true, paused: false } : booth))
-  }
-
-  const handleLockBooth = name => {
-    setBooths(prev => prev.map(booth => booth.name === name ? { ...booth, locked: !booth.locked } : booth))
+      }
+    } catch {
+      if (order.pdfUrl) window.open(order.pdfUrl, '_blank')
+    } finally {
+      setActionLoading(null)
+    }
   }
 
   if (!isAuthorized) {
     return (
-      <div className="min-h-screen bg-[#07070d] text-white flex items-center justify-center px-4 py-10">
-        <div className="w-full max-w-md rounded-[2rem] border border-white/10 bg-slate-950/90 p-8 shadow-2xl shadow-black/40">
-          <div className="mb-6">
-            <p className="text-sm text-slate-400 uppercase tracking-[0.24em] mb-3">Admin Sign In</p>
-            <h1 className="text-3xl font-semibold">Enter Admin Password</h1>
-            <p className="mt-2 text-slate-500 text-sm">Access to the X Buddy admin dashboard is restricted.</p>
+      <div className="min-h-screen bg-[#09090E] text-white flex items-center justify-center px-4 py-10">
+        <div className="w-full max-w-md rounded-3xl border border-orange-500/20 bg-slate-950/90 p-8 shadow-2xl">
+          <div className="flex items-center gap-3 mb-6">
+            <div className="w-10 h-10 rounded-xl bg-gradient-to-tr from-[#F7931E] to-amber-400 flex items-center justify-center font-bold text-white shadow-lg">
+              X
+            </div>
+            <div>
+              <p className="text-xs text-orange-400 uppercase font-bold tracking-wider">Xerox Shop Portal</p>
+              <h1 className="text-2xl font-bold">Staff Sign In</h1>
+            </div>
           </div>
+          <p className="text-slate-400 text-xs mb-6">Enter shop operator password to access incoming campus print orders.</p>
           <form onSubmit={handleAdminLogin} className="space-y-4">
-            <label className="block text-slate-400 text-sm">Password</label>
             <input
               type="password"
               value={adminPassword}
-              onChange={handleAdminPasswordChange}
-              placeholder="Enter admin password"
-              className="w-full rounded-2xl border border-white/10 bg-slate-900/80 px-4 py-3 text-white placeholder-slate-600 focus:border-purple-500 focus:outline-none"
+              onChange={e => { setAdminPassword(e.target.value); setAuthError('') }}
+              placeholder="Enter staff password"
+              className="w-full rounded-xl border border-white/10 bg-slate-900/90 px-4 py-3 text-white placeholder-slate-500 focus:border-[#F7931E] focus:outline-none text-sm font-mono"
             />
-            {authError && <p className="text-rose-300 text-sm">{authError}</p>}
+            {authError && <p className="text-rose-400 text-xs">{authError}</p>}
             <button
               type="submit"
-              className="w-full rounded-2xl bg-purple-600 px-4 py-3 text-sm font-semibold text-white transition hover:bg-purple-500"
+              className="w-full rounded-xl bg-[#F7931E] hover:bg-[#e07010] px-4 py-3 text-sm font-bold text-white transition-all shadow-md shadow-orange-500/20"
             >
-              Unlock Dashboard
+              Unlock Dashboard →
             </button>
           </form>
-          <div className="mt-6 rounded-2xl bg-white/5 p-4 text-sm text-slate-400">
-            Use the admin password provided by the operator.
-          </div>
         </div>
       </div>
     )
   }
 
   return (
-    <div className="min-h-screen bg-[#07070d] text-white">
-      <div className="max-w-[1480px] mx-auto px-4 py-6 sm:px-6 lg:px-8">
-        <div className="flex flex-col gap-6 xl:flex-row xl:items-end xl:justify-between">
-          <div>
-            <p className="text-sm text-slate-400 uppercase tracking-[0.24em] mb-3">Premium Admin Dashboard</p>
-            <h1 className="text-3xl sm:text-4xl font-semibold tracking-tight">X Buddy Operations</h1>
-            <p className="mt-3 text-slate-400 max-w-2xl">Monitor print queue flow, booth uptime, orders, and revenue from a startup-grade SaaS admin console.</p>
+    <div className="min-h-screen bg-[#08080C] text-slate-100 font-sans pb-16">
+      {/* Top Header */}
+      <header className="border-b border-white/10 bg-slate-950/80 sticky top-0 z-30 backdrop-blur-md">
+        <div className="max-w-[1500px] mx-auto px-4 sm:px-6 py-4 flex flex-col md:flex-row md:items-center justify-between gap-4">
+          <div className="flex items-center gap-3">
+            <div className="w-10 h-10 rounded-xl bg-gradient-to-tr from-[#F7931E] to-amber-400 flex items-center justify-center font-black text-white text-lg shadow-md shadow-orange-500/20">
+              X
+            </div>
+            <div>
+              <div className="flex items-center gap-2">
+                <h1 className="text-lg font-bold text-white tracking-tight">Xerox Shop Staff Dashboard</h1>
+                <span className="text-[10px] uppercase font-bold px-2 py-0.5 rounded-full bg-orange-500/20 text-orange-400 border border-orange-500/30">
+                  Campus Queue
+                </span>
+              </div>
+              <p className="text-xs text-slate-400">Order fulfillment, print dispatch, and customer collection</p>
+            </div>
           </div>
-          <div className="flex flex-wrap gap-3">
-            <a href="/" className="inline-flex items-center gap-2 rounded-2xl border border-white/10 bg-white/5 px-4 py-2 text-sm text-slate-100 transition hover:border-purple-400/30 hover:bg-white/10">
-              <RefreshCcw className="h-4 w-4 text-purple-300" />
-              Back to User App
+
+          <div className="flex items-center gap-3">
+            <div className="inline-flex items-center gap-2 px-3 py-1.5 rounded-xl bg-slate-900 border border-white/10 text-xs">
+              <span className={`w-2 h-2 rounded-full ${realConnected ? 'bg-emerald-400 animate-pulse' : 'bg-amber-400'}`} />
+              <span className="text-slate-300">{realConnected ? 'Live Backend Feed' : 'Local / Demo Mode'}</span>
+            </div>
+            <a
+              href="/"
+              className="px-3.5 py-1.5 rounded-xl bg-white/5 hover:bg-white/10 text-slate-300 text-xs font-semibold border border-white/10 transition-colors flex items-center gap-1.5"
+            >
+              <span>←</span>
+              <span>Student App</span>
             </a>
           </div>
         </div>
+      </header>
 
-        {realError ? (
-          <div className="mb-6 rounded-3xl border border-rose-500/10 bg-rose-500/5 p-4 text-sm text-rose-100">
-            <strong>Real data unavailable:</strong> {realError} The dashboard is currently using fallback sample values.
-          </div>
-        ) : realConnected ? (
-          <div className="mb-6 rounded-3xl border border-emerald-500/10 bg-emerald-500/5 p-4 text-sm text-emerald-100">
-            Connected to backend data source. Live order feed is active.
-          </div>
-        ) : (
-          <div className="mb-6 rounded-3xl border border-slate-500/10 bg-slate-500/5 p-4 text-sm text-slate-200">
-            Attempting to connect to the backend order feed...
-          </div>
-        )}
-
-        <div className="mt-8 grid gap-4 xl:grid-cols-3">
+      {/* Main Container */}
+      <main className="max-w-[1500px] mx-auto px-4 sm:px-6 pt-6">
+        {/* Metric Cards */}
+        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3.5 mb-6">
           {[
-            { label: 'Total Orders Today', value: stats.total, icon: <TrendingUp className="h-5 w-5" /> , trend: '+14%'},
-            { label: 'Revenue Today', value: formatCurrency(stats.revenue), icon: <DollarSign className="h-5 w-5" /> , trend: '+11%' },
-            { label: 'Pending Prints', value: stats.pending, icon: <Clock3 className="h-5 w-5" /> , trend: '-3%' },
-            { label: 'Printed Orders', value: stats.printed, icon: <CheckCircle className="h-5 w-5" /> , trend: '+9%' },
-            { label: 'Failed Orders', value: stats.failed, icon: <AlertTriangle className="h-5 w-5" /> , trend: '-2%' },
-            { label: 'Active Booths', value: stats.active, icon: <Server className="h-5 w-5" /> , trend: '+4%' },
-          ].map((card, index) => (
-            <motion.div
-              key={card.label}
-              initial={{ opacity: 0, y: 18 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ delay: index * 0.04, duration: 0.35 }}
-              className="rounded-3xl border border-white/10 bg-white/5 p-5 shadow-2xl shadow-black/5 backdrop-blur-xl"
-            >
-              <div className="flex items-start justify-between gap-6">
-                <div>
-                  <p className="text-sm text-slate-400">{card.label}</p>
-                  <p className="mt-4 text-3xl font-semibold tracking-tight">{card.value}</p>
-                </div>
-                <div className="rounded-2xl bg-purple-500/10 p-3 text-purple-300">{card.icon}</div>
+            { label: 'Total Orders', value: stats.total, icon: <Layers className="w-4 h-4" />, color: 'text-orange-400' },
+            { label: 'Revenue', value: formatCurrency(stats.revenue), icon: <DollarSign className="w-4 h-4" />, color: 'text-emerald-400' },
+            { label: 'Pending / Intake', value: stats.pending, icon: <Clock3 className="w-4 h-4" />, color: 'text-amber-400' },
+            { label: 'Printing Queue', value: stats.printing, icon: <Printer className="w-4 h-4" />, color: 'text-violet-400' },
+            { label: 'Ready for Pickup', value: stats.ready, icon: <Store className="w-4 h-4" />, color: 'text-emerald-400' },
+            { label: 'Collected', value: stats.collected, icon: <PackageCheck className="w-4 h-4" />, color: 'text-slate-400' },
+          ].map((item, i) => (
+            <div key={i} className="rounded-2xl border border-white/10 bg-slate-900/60 p-4 shadow-sm backdrop-blur-xs">
+              <div className="flex items-center justify-between text-slate-400 text-xs mb-2">
+                <span>{item.label}</span>
+                <span className={item.color}>{item.icon}</span>
               </div>
-              <div className="mt-4 flex items-center gap-2 text-sm text-slate-400">
-                <ArrowUpRight className="h-4 w-4 text-emerald-400" />
-                <span>{card.trend} vs last 24h</span>
-              </div>
-            </motion.div>
+              <p className="text-xl sm:text-2xl font-bold text-white tracking-tight">{item.value}</p>
+            </div>
           ))}
         </div>
 
-        <div className="mt-8 grid gap-6 xl:grid-cols-[1.5fr_1fr]">
-          <div className="space-y-6">
-            <motion.div
-              initial={{ opacity: 0, y: 18 }}
-              animate={{ opacity: 1, y: 0 }}
-              className="rounded-[2rem] border border-white/10 bg-white/5 p-6 shadow-2xl shadow-black/5 backdrop-blur-xl"
-            >
-              <div className="flex flex-wrap items-center justify-between gap-4">
-                <div>
-                  <p className="text-sm text-slate-400">Live Order Monitoring</p>
-                  <h2 className="mt-2 text-2xl font-semibold">Realtime Order Table</h2>
-                </div>
-                <div className="inline-flex items-center gap-2 rounded-full bg-emerald-500/10 px-3 py-2 text-sm text-emerald-200">
-                  <CircleDot className="h-3.5 w-3.5 text-emerald-300" /> Live updates
-                </div>
-              </div>
-              <div className="mt-6 overflow-hidden rounded-[1.75rem] border border-white/10 bg-slate-950/80">
-                <div className="grid grid-cols-[1.4fr_1fr_1fr_0.8fr_1fr_0.9fr_0.9fr_1.3fr] gap-4 px-5 py-4 text-xs uppercase tracking-[0.2em] text-slate-500 border-b border-white/10">
-                  <span>Order ID</span>
-                  <span>File Name</span>
-                  <span>Type</span>
-                  <span>Pages</span>
-                  <span>Amount</span>
-                  <span>Booth</span>
-                  <span>Status</span>
-                  <span>Actions</span>
-                </div>
-                <div className="max-h-[430px] overflow-y-auto">
-                  {orders.map(order => (
-                    <div key={order.id} className="grid grid-cols-[1.4fr_1fr_1fr_0.8fr_1fr_0.9fr_0.9fr_1.3fr] gap-4 px-5 py-4 text-sm text-slate-200 odd:bg-white/5 even:bg-white/2">
-                      <span className="font-semibold text-slate-100">{order.id}</span>
-                      <span className="truncate">{order.fileName}</span>
-                      <span>{order.type}</span>
-                      <span>{order.pages}</span>
-                      <span>{formatCurrency(order.amount)}</span>
-                      <span>{order.booth}</span>
-                      <span className={`inline-flex items-center justify-center rounded-full px-2.5 py-1 text-xs font-semibold ${STATUS_STYLES[order.status] || 'bg-slate-500/10 text-slate-300'}`}>{order.status}</span>
-                      <div className="flex flex-wrap gap-2">
-                        <button onClick={() => handleRetry(order.id)} className="rounded-full bg-slate-800/90 px-3 py-1 text-[11px] uppercase tracking-[0.12em] text-slate-200 hover:bg-slate-700 transition">Retry</button>
-                        <button onClick={() => handleCancel(order.id)} className="rounded-full bg-rose-500/10 px-3 py-1 text-[11px] uppercase tracking-[0.12em] text-rose-200 hover:bg-rose-500/15 transition">Cancel</button>
-                        <button onClick={() => handleReprint(order.id)} className="rounded-full bg-violet-500/10 px-3 py-1 text-[11px] uppercase tracking-[0.12em] text-violet-200 hover:bg-violet-500/15 transition">Reprint</button>
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              </div>
-            </motion.div>
-
-            <motion.div
-              initial={{ opacity: 0, y: 18 }}
-              animate={{ opacity: 1, y: 0 }}
-              className="rounded-[2rem] border border-white/10 bg-white/5 p-6 shadow-2xl shadow-black/5 backdrop-blur-xl"
-            >
-              <div className="flex items-center justify-between gap-3 mb-5">
-                <div>
-                  <p className="text-sm text-slate-400">Revenue Performance</p>
-                  <h2 className="text-2xl font-semibold">Revenue by Day</h2>
-                </div>
-                <span className="rounded-full bg-slate-900/80 px-3 py-2 text-xs uppercase tracking-[0.18em] text-slate-400">Last 7 days</span>
-              </div>
-              <div className="h-72">
-                <ResponsiveContainer width="100%" height="100%">
-                  <AreaChart data={DAY_REVENUE} margin={{ top: 10, right: 24, left: 0, bottom: 0 }}>
-                    <defs>
-                      <linearGradient id="revenueGradient" x1="0" y1="0" x2="0" y2="1">
-                        <stop offset="5%" stopColor="#A855F7" stopOpacity={0.7} />
-                        <stop offset="95%" stopColor="#A855F7" stopOpacity={0.05} />
-                      </linearGradient>
-                    </defs>
-                    <CartesianGrid stroke="rgba(255,255,255,0.08)" vertical={false} />
-                    <XAxis dataKey="day" stroke="#94a3b8" axisLine={false} tickLine={false} />
-                    <YAxis stroke="#94a3b8" axisLine={false} tickLine={false} />
-                    <Tooltip contentStyle={{ background: '#0b1220', border: '1px solid rgba(148,163,184,0.12)', borderRadius: '1rem' }} />
-                    <Area type="monotone" dataKey="revenue" stroke="#A855F7" fill="url(#revenueGradient)" strokeWidth={3} />
-                  </AreaChart>
-                </ResponsiveContainer>
-              </div>
-            </motion.div>
+        {/* Filter & Search Bar */}
+        <div className="rounded-2xl border border-white/10 bg-slate-900/70 p-4 mb-6 flex flex-col md:flex-row items-center justify-between gap-4">
+          {/* Search */}
+          <div className="relative w-full md:w-96">
+            <input
+              type="text"
+              value={searchQuery}
+              onChange={e => setSearchQuery(e.target.value)}
+              placeholder="Search Order ID, file, phone, student..."
+              className="w-full rounded-xl border border-white/10 bg-slate-950/80 pl-10 pr-4 py-2 text-sm text-white placeholder-slate-500 focus:border-[#F7931E] focus:outline-none"
+            />
+            <Search className="w-4 h-4 text-slate-500 absolute left-3.5 top-3" />
+            {searchQuery && (
+              <button onClick={() => setSearchQuery('')} className="text-xs text-slate-400 absolute right-3 top-2.5">✕</button>
+            )}
           </div>
 
-          <div className="space-y-6">
-            <motion.div
-              initial={{ opacity: 0, y: 18 }}
-              animate={{ opacity: 1, y: 0 }}
-              className="rounded-[2rem] border border-white/10 bg-white/5 p-6 shadow-2xl shadow-black/5 backdrop-blur-xl"
-            >
-              <div className="flex items-center justify-between gap-3 mb-5">
-                <div>
-                  <p className="text-sm text-slate-400">Hourly Load</p>
-                  <h2 className="text-2xl font-semibold">Orders by Hour</h2>
-                </div>
-                <span className="rounded-full bg-slate-900/80 px-3 py-2 text-xs uppercase tracking-[0.18em] text-slate-400">Live feed</span>
-              </div>
-              <div className="h-72">
-                <ResponsiveContainer width="100%" height="100%">
-                  <BarChart data={HOUR_ORDERS} margin={{ top: 10, right: 12, left: -10, bottom: 10 }}>
-                    <CartesianGrid stroke="rgba(255,255,255,0.08)" vertical={false} />
-                    <XAxis dataKey="hour" stroke="#94a3b8" axisLine={false} tickLine={false} />
-                    <YAxis stroke="#94a3b8" axisLine={false} tickLine={false} />
-                    <Tooltip contentStyle={{ background: '#0b1220', border: '1px solid rgba(148,163,184,0.12)', borderRadius: '1rem' }} />
-                    <Bar dataKey="orders" fill="#38BDF8" radius={[10, 10, 0, 0]} />
-                  </BarChart>
-                </ResponsiveContainer>
-              </div>
-            </motion.div>
-
-            <motion.div
-              initial={{ opacity: 0, y: 18 }}
-              animate={{ opacity: 1, y: 0 }}
-              className="rounded-[2rem] border border-white/10 bg-white/5 p-6 shadow-2xl shadow-black/5 backdrop-blur-xl"
-            >
-              <div className="flex items-center justify-between gap-3 mb-5">
-                <div>
-                  <p className="text-sm text-slate-400">Document type demand</p>
-                  <h2 className="text-2xl font-semibold">Most Used Documents</h2>
-                </div>
-                <span className="rounded-full bg-slate-900/80 px-3 py-2 text-xs uppercase tracking-[0.18em] text-slate-400">Usage</span>
-              </div>
-              <div className="h-72">
-                <ResponsiveContainer width="100%" height="100%">
-                  <PieChart>
-                    <Pie data={DOC_USAGE} dataKey="value" nameKey="name" innerRadius={62} outerRadius={90} paddingAngle={4} stroke="transparent">
-                      {DOC_USAGE.map(entry => (
-                        <Cell key={entry.name} fill={entry.color} />
-                      ))}
-                    </Pie>
-                    <Legend verticalAlign="bottom" align="center" iconType="circle" wrapperStyle={{ color: '#cbd5e1', fontSize: 12 }} />
-                  </PieChart>
-                </ResponsiveContainer>
-              </div>
-            </motion.div>
-
-            <motion.div
-              initial={{ opacity: 0, y: 18 }}
-              animate={{ opacity: 1, y: 0 }}
-              className="rounded-[2rem] border border-white/10 bg-white/5 p-6 shadow-2xl shadow-black/5 backdrop-blur-xl"
-            >
-              <div className="flex items-center justify-between gap-3 mb-5">
-                <div>
-                  <p className="text-sm text-slate-400">Hardware & uptime</p>
-                  <h2 className="text-2xl font-semibold">Booth Management</h2>
-                </div>
-                <span className="rounded-full bg-slate-900/80 px-3 py-2 text-xs uppercase tracking-[0.18em] text-slate-400">Infrastructure</span>
-              </div>
-              <div className="space-y-4">
-                {booths.map(booth => (
-                  <div key={booth.name} className="rounded-3xl border border-white/10 bg-slate-950/80 p-4">
-                    <div className="flex flex-wrap items-center justify-between gap-4">
-                      <div>
-                        <h3 className="text-lg font-semibold">{booth.name}</h3>
-                        <p className="text-sm text-slate-500">Printer {booth.connected ? 'Connected' : 'Disconnected'}</p>
-                      </div>
-                      <div className={`inline-flex items-center gap-2 rounded-full px-3 py-1.5 text-sm font-medium ${booth.online ? 'bg-emerald-500/10 text-emerald-300' : 'bg-rose-500/10 text-rose-300'}`}>
-                        <span className={`h-2.5 w-2.5 rounded-full ${booth.online ? 'bg-emerald-300' : 'bg-rose-300'}`} />
-                        {booth.online ? 'Online' : 'Offline'}
-                      </div>
-                    </div>
-                    <div className="mt-4 grid grid-cols-2 gap-4 text-sm text-slate-400">
-                      <div className="rounded-2xl bg-white/5 p-3">
-                        <p className="text-slate-300">Queue</p>
-                        <p className="mt-2 text-xl font-semibold">{booth.queue}</p>
-                      </div>
-                      <div className="rounded-2xl bg-white/5 p-3">
-                        <p className="text-slate-300">Printed Today</p>
-                        <p className="mt-2 text-xl font-semibold">{booth.printed}</p>
-                      </div>
-                      <div className="rounded-2xl bg-white/5 p-3">
-                        <p className="text-slate-300">Rev Today</p>
-                        <p className="mt-2 text-xl font-semibold">{formatCurrency(booth.revenue)}</p>
-                      </div>
-                      <div className="rounded-2xl bg-white/5 p-3">
-                        <p className="text-slate-300">Locked</p>
-                        <p className="mt-2 text-xl font-semibold">{booth.locked ? 'Yes' : 'No'}</p>
-                      </div>
-                    </div>
-                    <div className="mt-4 flex flex-wrap gap-2">
-                      <button onClick={() => handlePauseBooth(booth.name)} className="inline-flex items-center gap-2 rounded-2xl bg-slate-900/90 px-3 py-2 text-sm text-slate-100 hover:bg-slate-800 transition">
-                        <PauseCircle className="h-4 w-4" /> {booth.online ? 'Pause' : 'Resume'}
-                      </button>
-                      <button onClick={() => handleRestartBooth(booth.name)} className="inline-flex items-center gap-2 rounded-2xl bg-violet-500/10 px-3 py-2 text-sm text-violet-200 hover:bg-violet-500/15 transition">
-                        <RefreshCcw className="h-4 w-4" /> Restart
-                      </button>
-                      <button onClick={() => handleLockBooth(booth.name)} className="inline-flex items-center gap-2 rounded-2xl bg-rose-500/10 px-3 py-2 text-sm text-rose-200 hover:bg-rose-500/15 transition">
-                        <Lock className="h-4 w-4" /> {booth.locked ? 'Unlock' : 'Lock'}
-                      </button>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            </motion.div>
+          {/* Status Tabs */}
+          <div className="flex items-center gap-1.5 overflow-x-auto w-full md:w-auto pb-1 md:pb-0 text-xs">
+            {[
+              { key: 'ALL', label: 'All Orders' },
+              { key: 'PENDING', label: 'Pending / Accepted' },
+              { key: 'PRINTING', label: 'Printing' },
+              { key: 'READY', label: 'Ready for Collection' },
+              { key: 'COLLECTED', label: 'Collected' },
+              { key: 'CANCELLED', label: 'Cancelled' },
+            ].map(tab => (
+              <button
+                key={tab.key}
+                onClick={() => setStatusFilter(tab.key)}
+                className={`px-3 py-1.5 rounded-xl font-semibold transition-colors whitespace-nowrap ${
+                  statusFilter === tab.key
+                    ? 'bg-[#F7931E] text-white shadow-sm'
+                    : 'bg-white/5 hover:bg-white/10 text-slate-400'
+                }`}
+              >
+                {tab.label}
+              </button>
+            ))}
           </div>
         </div>
 
-        <motion.div
-          initial={{ opacity: 0, y: 18 }}
-          animate={{ opacity: 1, y: 0 }}
-          className="mt-6 rounded-[2rem] border border-white/10 bg-white/5 p-6 shadow-2xl shadow-black/5 backdrop-blur-xl"
-        >
-          <div className="flex flex-wrap items-center justify-between gap-4">
-            <div>
-              <p className="text-sm text-slate-400">System health overview</p>
-              <h2 className="text-2xl font-semibold">Infrastructure Status</h2>
-            </div>
-            <div className="rounded-full bg-slate-900/80 px-3 py-2 text-sm uppercase tracking-[0.18em] text-slate-400">Updated {refreshTick * 4}s ago</div>
+        {/* Orders Table */}
+        <div className="rounded-3xl border border-white/10 bg-slate-950/90 overflow-hidden shadow-xl">
+          <div className="overflow-x-auto">
+            <table className="w-full text-left border-collapse">
+              <thead>
+                <tr className="border-b border-white/10 text-[11px] uppercase tracking-wider text-slate-400 bg-slate-900/80">
+                  <th className="py-3.5 px-4 font-bold">Order ID</th>
+                  <th className="py-3.5 px-4 font-bold">Student / File</th>
+                  <th className="py-3.5 px-4 font-bold text-center">Pages</th>
+                  <th className="py-3.5 px-4 font-bold text-center">Copies</th>
+                  <th className="py-3.5 px-4 font-bold">Print Type</th>
+                  <th className="py-3.5 px-4 font-bold">Amount</th>
+                  <th className="py-3.5 px-4 font-bold">Payment</th>
+                  <th className="py-3.5 px-4 font-bold">Order Status</th>
+                  <th className="py-3.5 px-4 font-bold">Time</th>
+                  <th className="py-3.5 px-4 font-bold text-right">Staff Workflow</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-white/5 text-xs text-slate-200">
+                {filteredOrders.length === 0 ? (
+                  <tr>
+                    <td colSpan={10} className="py-12 text-center text-slate-500">
+                      No matching orders found.
+                    </td>
+                  </tr>
+                ) : (
+                  filteredOrders.map(order => {
+                    const badgeCls = STATUS_BADGES[order.status] || STATUS_BADGES['Order Received']
+                    const isBusy = actionLoading === order.id
+
+                    return (
+                      <tr key={order.id} className="hover:bg-white/[0.03] transition-colors">
+                        {/* Order ID */}
+                        <td className="py-3.5 px-4 font-mono font-bold text-orange-400 text-sm">
+                          {order.id}
+                        </td>
+
+                        {/* Student / File */}
+                        <td className="py-3.5 px-4">
+                          <p className="font-semibold text-white truncate max-w-[200px]" title={order.fileName}>
+                            {order.fileName}
+                          </p>
+                          <p className="text-[11px] text-slate-400 flex items-center gap-1 mt-0.5">
+                            <span>{order.studentName}</span>
+                            {order.phone && <span>• {order.phone}</span>}
+                          </p>
+                        </td>
+
+                        {/* Pages */}
+                        <td className="py-3.5 px-4 text-center">
+                          <span className="font-bold text-slate-100">{order.pages}</span>
+                          {order.customPages && (
+                            <span className="block text-[10px] text-orange-400">({order.customPages})</span>
+                          )}
+                        </td>
+
+                        {/* Copies */}
+                        <td className="py-3.5 px-4 text-center font-bold text-slate-100">
+                          {order.copies}
+                        </td>
+
+                        {/* Print Type */}
+                        <td className="py-3.5 px-4">
+                          <div className="flex items-center gap-1">
+                            <span className={`px-2 py-0.5 rounded text-[10px] font-bold ${order.printType === 'Color' ? 'bg-purple-500/20 text-purple-300' : 'bg-slate-800 text-slate-300'}`}>
+                              {order.printType}
+                            </span>
+                            <span className="px-1.5 py-0.5 rounded bg-slate-800 text-slate-400 text-[10px]">
+                              {order.printSide || 'Single'}
+                            </span>
+                          </div>
+                        </td>
+
+                        {/* Amount */}
+                        <td className="py-3.5 px-4 font-bold text-emerald-400">
+                          {formatCurrency(order.amount)}
+                        </td>
+
+                        {/* Payment */}
+                        <td className="py-3.5 px-4">
+                          <span className="inline-flex items-center gap-1 text-[11px] text-emerald-400 font-semibold">
+                            <Check className="w-3 h-3" /> Paid
+                          </span>
+                        </td>
+
+                        {/* Order Status */}
+                        <td className="py-3.5 px-4">
+                          <span className={`inline-block px-2.5 py-1 rounded-full text-[11px] ${badgeCls}`}>
+                            {order.status}
+                          </span>
+                        </td>
+
+                        {/* Time */}
+                        <td className="py-3.5 px-4 text-slate-400 text-[11px]">
+                          {order.time}
+                        </td>
+
+                        {/* Staff Actions */}
+                        <td className="py-3.5 px-4 text-right">
+                          <div className="flex items-center justify-end gap-1.5 flex-wrap">
+                            <button
+                              onClick={() => setSelectedOrder(order)}
+                              className="px-2.5 py-1 rounded-lg bg-white/5 hover:bg-white/10 text-slate-300 text-[11px] font-semibold transition-colors flex items-center gap-1"
+                              title="View Document Details"
+                            >
+                              <Eye className="w-3 h-3" /> Details
+                            </button>
+
+                            {/* Workflow buttons */}
+                            {(order.status === 'Pending' || order.status === 'Waiting' || order.status === 'Payment Submitted') && (
+                              <button
+                                disabled={isBusy}
+                                onClick={() => handleStatusChange(order.id, 'Accepted')}
+                                className="px-2.5 py-1 rounded-lg bg-blue-600 hover:bg-blue-500 text-white text-[11px] font-bold transition-all shadow-xs"
+                              >
+                                Accept Order
+                              </button>
+                            )}
+
+                            {(order.status === 'Accepted' || order.status === 'Order Received') && (
+                              <button
+                                disabled={isBusy}
+                                onClick={() => handlePrintTrigger(order)}
+                                className="px-2.5 py-1 rounded-lg bg-violet-600 hover:bg-violet-500 text-white text-[11px] font-bold transition-all shadow-xs flex items-center gap-1"
+                              >
+                                <Printer className="w-3 h-3" /> Start Printing
+                              </button>
+                            )}
+
+                            {order.status === 'Printing' && (
+                              <button
+                                disabled={isBusy}
+                                onClick={() => handleStatusChange(order.id, 'Ready for Collection')}
+                                className="px-2.5 py-1 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white text-[11px] font-bold transition-all shadow-xs flex items-center gap-1"
+                              >
+                                <Check className="w-3 h-3" /> Mark Ready
+                              </button>
+                            )}
+
+                            {(order.status === 'Ready for Collection' || order.status === 'Ready' || order.status === 'Printed') && (
+                              <button
+                                disabled={isBusy}
+                                onClick={() => handleStatusChange(order.id, 'Collected')}
+                                className="px-2.5 py-1 rounded-lg bg-emerald-500 hover:bg-emerald-400 text-slate-950 text-[11px] font-extrabold transition-all shadow-xs flex items-center gap-1"
+                              >
+                                <PackageCheck className="w-3.5 h-3.5" /> Mark Collected
+                              </button>
+                            )}
+
+                            {order.status !== 'Collected' && order.status !== 'Cancelled' && (
+                              <button
+                                disabled={isBusy}
+                                onClick={() => handleStatusChange(order.id, 'Cancelled')}
+                                className="px-2 py-1 rounded-lg bg-rose-500/10 hover:bg-rose-500/20 text-rose-300 text-[11px] transition-colors"
+                                title="Cancel Order"
+                              >
+                                ✕
+                              </button>
+                            )}
+                          </div>
+                        </td>
+                      </tr>
+                    )
+                  })
+                )}
+              </tbody>
+            </table>
           </div>
-          <div className="mt-6 grid gap-4 sm:grid-cols-2 lg:grid-cols-5">
-            {health.map(check => (
-              <div key={check.name} className="rounded-3xl border border-white/10 bg-slate-950/80 p-4">
-                <div className="flex items-center justify-between gap-3">
-                  <p className="text-sm text-slate-400">{check.name}</p>
-                  <span className={`rounded-full px-2.5 py-1 text-xs font-semibold ${getBadge(check.status)}`}>{check.status}</span>
+        </div>
+      </main>
+
+      {/* Order Details & Print File Modal */}
+      <AnimatePresence>
+        {selectedOrder && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              onClick={() => setSelectedOrder(null)}
+              className="fixed inset-0 bg-black/70 backdrop-blur-xs"
+            />
+            <motion.div
+              initial={{ opacity: 0, scale: 0.95, y: 15 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.95, y: 15 }}
+              className="relative z-10 bg-slate-900 border border-white/15 rounded-3xl p-6 w-full max-w-lg shadow-2xl text-slate-100"
+            >
+              <div className="flex items-center justify-between mb-4 border-b border-white/10 pb-3">
+                <div className="flex items-center gap-2">
+                  <span className="font-mono text-xl font-extrabold text-[#F7931E]">{selectedOrder.id}</span>
+                  <span className={`px-2.5 py-0.5 rounded-full text-[11px] ${STATUS_BADGES[selectedOrder.status] || ''}`}>
+                    {selectedOrder.status}
+                  </span>
                 </div>
-                <p className="mt-3 text-lg font-semibold text-slate-100">{check.status === 'online' ? 'Healthy' : 'Needs attention'}</p>
+                <button
+                  onClick={() => setSelectedOrder(null)}
+                  className="w-8 h-8 rounded-full bg-white/5 hover:bg-white/10 text-slate-400 flex items-center justify-center text-xs transition-colors"
+                >
+                  ✕
+                </button>
               </div>
-            ))}
+
+              {/* Order Details Grid */}
+              <div className="space-y-3 text-xs mb-6">
+                <div className="p-3.5 rounded-2xl bg-slate-950/80 border border-white/10 flex items-center justify-between">
+                  <div className="min-w-0 flex-1 mr-3">
+                    <p className="text-slate-400 text-[11px]">Document File</p>
+                    <p className="font-bold text-white text-sm truncate">{selectedOrder.fileName}</p>
+                  </div>
+                  {selectedOrder.pdfUrl && (
+                    <a
+                      href={selectedOrder.pdfUrl}
+                      target="_blank"
+                      rel="noreferrer"
+                      className="px-3 py-1.5 rounded-xl bg-orange-500/20 hover:bg-orange-500/30 text-orange-300 font-bold border border-orange-500/30 flex items-center gap-1 transition-colors"
+                    >
+                      <Download className="w-3.5 h-3.5" /> Download
+                    </a>
+                  )}
+                </div>
+
+                <div className="grid grid-cols-2 gap-2.5">
+                  <div className="p-3 rounded-xl bg-slate-950/50 border border-white/5">
+                    <span className="text-slate-400 block mb-0.5">Student / Contact</span>
+                    <span className="font-bold text-white">{selectedOrder.studentName || 'Campus Student'}</span>
+                    {selectedOrder.phone && <p className="text-slate-400 mt-0.5">{selectedOrder.phone}</p>}
+                  </div>
+                  <div className="p-3 rounded-xl bg-slate-950/50 border border-white/5">
+                    <span className="text-slate-400 block mb-0.5">Payment Total</span>
+                    <span className="font-extrabold text-emerald-400 text-base">{formatCurrency(selectedOrder.amount)}</span>
+                    <span className="text-[10px] text-emerald-400/80 block">Verified via UPI</span>
+                  </div>
+                </div>
+
+                <div className="p-3.5 rounded-2xl bg-slate-950/60 border border-white/5 space-y-2">
+                  <div className="flex justify-between">
+                    <span className="text-slate-400">Total / Printable Pages:</span>
+                    <span className="font-bold text-white">{selectedOrder.pages} pages</span>
+                  </div>
+                  {selectedOrder.customPages && (
+                    <div className="flex justify-between">
+                      <span className="text-slate-400">Custom Page Selection:</span>
+                      <span className="font-mono font-bold text-orange-400">{selectedOrder.customPages}</span>
+                    </div>
+                  )}
+                  <div className="flex justify-between">
+                    <span className="text-slate-400">Number of Copies:</span>
+                    <span className="font-bold text-white">{selectedOrder.copies}</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className="text-slate-400">Color Mode:</span>
+                    <span className="font-bold text-white">{selectedOrder.printType}</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className="text-slate-400">Duplex / Sides:</span>
+                    <span className="font-bold text-white">{selectedOrder.printSide || 'Single Side'}</span>
+                  </div>
+                </div>
+              </div>
+
+              {/* Action Buttons */}
+              <div className="flex items-center gap-2 pt-2">
+                <button
+                  onClick={() => handlePrintTrigger(selectedOrder)}
+                  className="flex-1 py-3 bg-[#F7931E] hover:bg-[#e07010] text-white font-bold text-xs rounded-xl shadow-lg shadow-orange-500/20 transition-all flex items-center justify-center gap-1.5"
+                >
+                  <Printer className="w-4 h-4" /> Print on Shop Printer
+                </button>
+                {selectedOrder.status !== 'Collected' && (
+                  <button
+                    onClick={() => {
+                      handleStatusChange(selectedOrder.id, 'Collected')
+                      setSelectedOrder(null)
+                    }}
+                    className="px-4 py-3 bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-xs rounded-xl transition-all flex items-center gap-1"
+                  >
+                    <PackageCheck className="w-4 h-4" /> Collected
+                  </button>
+                )}
+              </div>
+            </motion.div>
           </div>
-        </motion.div>
-      </div>
+        )}
+      </AnimatePresence>
     </div>
   )
 }
+

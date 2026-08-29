@@ -32,11 +32,19 @@ export default function PaymentModal({ total, orderMeta, onSuccess, onClose }) {
             >✕</button>
           </div>
 
-          {/* Amount badge */}
-          <div className="text-center mb-4">
-            <div className="inline-flex items-center gap-2 px-5 py-2 rounded-full bg-orange-50 border border-orange-200">
-              <span className="text-gray-500 text-sm">Amount:</span>
-              <span className="text-[#F78C25] font-extrabold text-2xl">₹{total}</span>
+          {/* Amount breakdown badge */}
+          <div className="bg-orange-50/80 border border-orange-200 rounded-2xl p-3 mb-4 text-xs">
+            <div className="flex justify-between text-gray-500 mb-1">
+              <span>Printing Cost</span>
+              <span className="font-semibold text-gray-800">₹{orderMeta?.printingCost ?? total}</span>
+            </div>
+            <div className="flex justify-between text-gray-500 mb-1.5">
+              <span>X Buddy Service Fee</span>
+              <span className="font-semibold text-gray-800">+₹{orderMeta?.serviceFee ?? 0}</span>
+            </div>
+            <div className="flex justify-between items-center border-t border-orange-200 pt-1.5 font-bold">
+              <span className="text-slate-800">Total Payable:</span>
+              <span className="text-[#F78C25] font-extrabold text-xl">₹{total}</span>
             </div>
           </div>
 

@@ -60,7 +60,7 @@ function PinLogin({ onSuccess }) {
         </div>
         <div>
           <p className="text-[#222222] font-bold text-2xl">X Buddy</p>
-          <p className="text-[#6B7280] text-xs">Printer Booth Terminal</p>
+          <p className="text-[#6B7280] text-xs">Xerox Shop Print Terminal</p>
         </div>
       </motion.div>
 
@@ -74,7 +74,7 @@ function PinLogin({ onSuccess }) {
             <span className="text-4xl">🔐</span>
           </div>
           <h2 className="text-2xl font-bold text-[#222222]">Shopkeeper Access</h2>
-          <p className="text-[#6B7280] text-sm mt-1">Enter your PIN to unlock the booth</p>
+          <p className="text-[#6B7280] text-sm mt-1">Enter your PIN to unlock the print terminal</p>
         </div>
 
         <motion.form
@@ -113,7 +113,7 @@ function PinLogin({ onSuccess }) {
           >
             {loading
               ? <div className="w-5 h-5 border-2 border-white/40 border-t-white rounded-full animate-spin" />
-              : '🔓 Unlock Booth'
+              : '🔓 Unlock Terminal'
             }
           </button>
         </motion.form>
@@ -171,8 +171,8 @@ function ReleasePrint({ onLock }) {
             <span className="text-white font-bold">X</span>
           </div>
           <div>
-            <p className="text-[#222222] font-bold text-sm">X Buddy Booth</p>
-            <p className="text-[#6B7280] text-xs">Printer Terminal</p>
+            <p className="text-[#222222] font-bold text-sm">X Buddy Terminal</p>
+            <p className="text-[#6B7280] text-xs">Campus Print Station</p>
           </div>
         </div>
         <div className="flex items-center gap-6">

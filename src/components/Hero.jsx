@@ -2,9 +2,9 @@ import React from 'react'
 import { motion } from 'framer-motion'
 import TrustStats from './TrustStats'
 import BlurText from './BlurText'
-import { ArrowRight, Sparkles, FileText } from 'lucide-react'
+import { ArrowRight, Sparkles, FileText, ClipboardList } from 'lucide-react'
 
-export default function Hero({ onGetStarted, onResumeBuilder }) {
+export default function Hero({ onGetStarted, onResumeBuilder, onMyOrders }) {
   return (
     <section className="relative min-h-[85vh] flex flex-col justify-between pt-12 pb-16 px-4 overflow-hidden bg-white">
       {/* Soft Orange Radial Glows */}
@@ -25,13 +25,13 @@ export default function Hero({ onGetStarted, onResumeBuilder }) {
           className="inline-flex items-center gap-2 px-4 py-2 rounded-full border border-orange-200/80 bg-gradient-to-r from-orange-50 via-white to-amber-50 shadow-sm text-slate-800 text-xs font-semibold mb-6 group cursor-default"
         >
           <span className="w-2 h-2 rounded-full bg-[#F7931E] animate-pulse" />
-          <span className="text-[#F7931E] font-bold">⚡ Next-Gen</span>
+          <span className="text-[#F7931E] font-bold">⚡ Digital Platform</span>
           <span className="text-slate-300">|</span>
-          <span className="text-slate-600">Smart Campus Infrastructure Platform</span>
+          <span className="text-slate-600">Smart Print Ordering for Campus Xerox Shops</span>
         </motion.div>
 
         {/* Hero Title with BlurText */}
-        <h1 className="text-6xl sm:text-7xl md:text-8xl font-extrabold tracking-tight leading-[1.05] mb-4">
+        <h1 className="text-6xl sm:text-7xl md:text-8xl font-extrabold tracking-tight leading-[1.05] mb-3">
           <BlurText
             text="X Buddy"
             delay={100}
@@ -43,9 +43,9 @@ export default function Hero({ onGetStarted, onResumeBuilder }) {
         </h1>
 
         {/* Title Subhead with BlurText */}
-        <h2 className="text-2xl sm:text-3xl md:text-4xl font-extrabold text-slate-800 tracking-tight mb-6">
+        <h2 className="text-2xl sm:text-3xl md:text-4xl font-extrabold text-slate-800 tracking-tight mb-5">
           <BlurText
-            text="One Kiosk. Endless Services."
+            text="Smart Digital Printing for Campus"
             delay={80}
             animateBy="words"
             direction="top"
@@ -55,7 +55,7 @@ export default function Hero({ onGetStarted, onResumeBuilder }) {
 
         {/* Subtitle Copy with BlurText */}
         <BlurText
-          text="Print, scan, generate documents, make secure payments, and access essential campus services—all from one intelligent smart kiosk."
+          text="Upload your documents, pay digitally, track your order, and collect your prints from your campus Xerox shop."
           delay={35}
           animateBy="words"
           direction="top"
@@ -68,7 +68,7 @@ export default function Hero({ onGetStarted, onResumeBuilder }) {
           initial={{ opacity: 0 }}
           animate={{ opacity: 1 }}
           transition={{ delay: 0.4 }}
-          className="flex items-center justify-center gap-2 text-xs font-medium text-slate-400 mb-10"
+          className="flex items-center justify-center gap-2 text-xs font-medium text-slate-400 mb-8"
         >
           <span>Powered by NextGen Labs</span>
           <span className="w-1.5 h-1.5 rounded-full bg-[#F7931E]" />
@@ -79,23 +79,35 @@ export default function Hero({ onGetStarted, onResumeBuilder }) {
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.6, delay: 0.45 }}
-          className="flex flex-wrap items-center justify-center gap-4 w-full sm:w-auto mb-14"
+          className="flex flex-wrap items-center justify-center gap-3.5 w-full sm:w-auto mb-14"
         >
           <motion.button
             whileHover={{ scale: 1.04, y: -2 }}
             whileTap={{ scale: 0.98 }}
             onClick={onGetStarted}
-            className="px-8 py-4 rounded-2xl bg-gradient-to-r from-[#F7931E] to-[#FF6B00] text-white font-bold text-base glow-orange-button transition-all duration-200 flex items-center justify-center gap-2 group"
+            className="px-8 py-4 rounded-2xl bg-gradient-to-r from-[#F7931E] to-[#FF6B00] text-white font-bold text-base glow-orange-button transition-all duration-200 flex items-center justify-center gap-2 group shadow-lg shadow-orange-500/20"
           >
-            <span>Print Now</span>
+            <span>Start Printing</span>
             <ArrowRight className="w-4 h-4 group-hover:translate-x-1 transition-transform" />
           </motion.button>
+
+          {onMyOrders && (
+            <motion.button
+              whileHover={{ scale: 1.04, y: -2 }}
+              whileTap={{ scale: 0.98 }}
+              onClick={onMyOrders}
+              className="px-7 py-4 rounded-2xl bg-orange-50/70 hover:bg-orange-100/70 text-[#F7931E] font-bold text-base border border-orange-200 shadow-xs transition-all duration-200 flex items-center justify-center gap-2"
+            >
+              <ClipboardList className="w-4 h-4" />
+              <span>Track My Orders</span>
+            </motion.button>
+          )}
 
           <motion.button
             whileHover={{ scale: 1.04, y: -2 }}
             whileTap={{ scale: 0.98 }}
             onClick={onResumeBuilder}
-            className="px-7 py-4 rounded-2xl bg-white hover:bg-orange-50/50 text-slate-800 font-bold text-base border border-orange-200/90 shadow-sm transition-all duration-200 flex items-center justify-center gap-2"
+            className="px-6 py-4 rounded-2xl bg-white hover:bg-orange-50/50 text-slate-800 font-bold text-base border border-orange-200/90 shadow-xs transition-all duration-200 flex items-center justify-center gap-2"
           >
             <span>Build Resume</span>
             <Sparkles className="w-4 h-4 text-[#F7931E]" />
@@ -105,7 +117,7 @@ export default function Hero({ onGetStarted, onResumeBuilder }) {
             whileHover={{ scale: 1.04, y: -2 }}
             whileTap={{ scale: 0.98 }}
             href="#academic-toolkit"
-            className="px-7 py-4 rounded-2xl bg-white hover:bg-orange-50/50 text-slate-700 font-bold text-base border border-orange-200/90 shadow-sm transition-all duration-200 flex items-center justify-center gap-2"
+            className="px-6 py-4 rounded-2xl bg-white hover:bg-orange-50/50 text-slate-700 font-bold text-base border border-orange-200/90 shadow-xs transition-all duration-200 flex items-center justify-center gap-2"
           >
             <span>Academic Toolkit</span>
             <FileText className="w-4 h-4 text-slate-400" />

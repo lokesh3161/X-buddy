@@ -6,16 +6,19 @@ const OFFLINE_TIMEOUT_MS = 30000
 const POLL_INTERVAL_MS   = 5000
 
 const STAGES = [
-  { id: 'paid',     label: 'Payment Confirmed', icon: '✅', desc: 'Your payment has been verified'           },
-  { id: 'queued',   label: 'Order Queued',       icon: '📋', desc: 'Your document is saved and ready'        },
-  { id: 'printing', label: 'Printing',           icon: '🖨️', desc: 'Printing your document...'              },
-  { id: 'done',     label: 'Completed',          icon: '🎉', desc: 'Collect your document from the printer!' },
+  { id: 'paid',     label: 'Order Confirmed',    icon: '✅', desc: 'Payment verified & order received by shop' },
+  { id: 'queued',   label: 'In Print Queue',     icon: '📋', desc: 'Queued at the campus Xerox shop'           },
+  { id: 'printing', label: 'Printing',           icon: '🖨️', desc: 'Staff is printing your documents...'       },
+  { id: 'done',     label: 'Ready / Collected',  icon: '🎉', desc: 'Ready for pickup at the Xerox shop!'       },
 ]
 
 function statusToStage(status) {
   switch (status) {
     case 'Printing': return 2
-    case 'Printed':  return 3
+    case 'Ready':
+    case 'Ready for Collection':
+    case 'Printed':
+    case 'Collected': return 3
     case 'Failed':   return 3
     default:         return 1
   }
@@ -50,7 +53,7 @@ export default function PrintStatus({ fileInfo, settings, orderId, onReset, onVi
           setStageIndex(statusToStage(status))
           if (status !== 'Waiting') { setServerOffline(false); clearTimeout(offlineRef.current) }
           if (status === 'Failed')  { setPrintFailed(true); clearInterval(pollRef.current); return }
-          if (status === 'Printed') { clearInterval(pollRef.current) }
+          if (status === 'Printed' || status === 'Collected') { clearInterval(pollRef.current) }
         }
       } catch {}
     }
@@ -87,15 +90,18 @@ export default function PrintStatus({ fileInfo, settings, orderId, onReset, onVi
           </svg>
         </motion.div>
         <h2 className="text-2xl font-bold text-[#222222]">✓ Order Confirmed</h2>
-        <div className="inline-flex items-center gap-2 mt-2 px-4 py-1.5 rounded-full bg-orange-50 border border-orange-200">
-          <span className="text-gray-400 text-xs">Order ID:</span>
-          <span className="text-[#F78C25] font-mono text-xs font-bold tracking-wider">{orderId}</span>
+        <div className="inline-flex items-center gap-2 mt-2 px-5 py-2 rounded-full bg-orange-50 border border-orange-200 shadow-xs">
+          <span className="text-gray-500 text-xs font-medium">Order ID:</span>
+          <span className="text-[#F78C25] font-mono text-base font-extrabold tracking-wider">{orderId}</span>
         </div>
+        <p className="text-sm font-semibold text-slate-700 mt-3">
+          Show this Order ID at the Xerox shop to collect your documents.
+        </p>
       </div>
 
       {/* Collection Framing Card */}
       <div className="mb-6 p-5 bg-[#FFF8F2] border border-orange-200 rounded-2xl text-center shadow-xs">
-        <p className="text-sm font-bold text-[#222222] mb-3">When would you like to collect your document?</p>
+        <p className="text-sm font-bold text-[#222222] mb-3">When would you like to collect your documents?</p>
         <div className="flex gap-3 max-w-sm mx-auto mb-4">
           <button
             type="button"
@@ -123,13 +129,13 @@ export default function PrintStatus({ fileInfo, settings, orderId, onReset, onVi
 
         {collectionChoice === 'now' ? (
           <div className="bg-white/80 p-3.5 rounded-xl border border-orange-100 text-xs text-gray-600">
-            <span className="font-semibold text-[#F78C25]">Head to the booth now and give them this ID.</span>
-            <p className="mt-1 text-gray-500">The shopkeeper will enter Order ID <span className="font-mono font-bold text-gray-800">{orderId}</span> into the kiosk to release your print.</p>
+            <span className="font-semibold text-[#F78C25]">Head to the campus Xerox shop now.</span>
+            <p className="mt-1 text-gray-500">The shop staff will look up Order ID <span className="font-mono font-bold text-gray-800">{orderId}</span> to hand over your printed documents.</p>
           </div>
         ) : (
           <div className="bg-white/80 p-3.5 rounded-xl border border-orange-100 text-xs text-gray-600 space-y-2">
-            <span className="font-semibold text-emerald-600">✓ We've saved this for you in My Orders!</span>
-            <p className="text-gray-500">You can close this tab and come back anytime. Show Order ID <span className="font-mono font-bold text-gray-800">{orderId}</span> at the booth whenever you are ready.</p>
+            <span className="font-semibold text-emerald-600">✓ Saved in My Orders!</span>
+            <p className="text-gray-500">You can close this page. Show Order ID <span className="font-mono font-bold text-gray-800">{orderId}</span> at the Xerox shop whenever you visit.</p>
             {onViewMyOrders && (
               <button
                 type="button"
@@ -143,15 +149,15 @@ export default function PrintStatus({ fileInfo, settings, orderId, onReset, onVi
         )}
       </div>
 
-      {/* Booth instruction */}
+      {/* Shop instruction banner */}
       <AnimatePresence>
         {stageIndex < 2 && (
           <motion.div initial={{ opacity: 0, y: -10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }}
             className="mb-4 p-4 rounded-2xl bg-orange-50 border border-orange-200 flex items-start gap-3">
             <span className="text-xl">🏪</span>
             <div>
-              <p className="text-[#F78C25] font-semibold text-sm">Go to the Printer Booth</p>
-              <p className="text-gray-500 text-xs mt-1">Show your Order ID at the booth. The shopkeeper will enter it to release your print.</p>
+              <p className="text-[#F78C25] font-semibold text-sm">Visit the Campus Xerox Shop</p>
+              <p className="text-gray-500 text-xs mt-1">Provide your Order ID to the staff at the counter to collect your prints.</p>
               <p className="text-gray-400 text-xs mt-1">Order ID: <span className="font-mono text-[#F78C25] font-bold">{orderId}</span></p>
             </div>
           </motion.div>
