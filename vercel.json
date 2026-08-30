@@ -1,6 +1,5 @@
 {
   "rewrites": [
-    { "source": "/admin", "destination": "/index.html" },
-    { "source": "/admin/(.*)", "destination": "/index.html" }
+    { "source": "/((?!assets/|booth.html|qr-code.png|favicon.ico).*)", "destination": "/index.html" }
   ]
 }
