@@ -62,15 +62,89 @@ export function formatBytes(bytes) {
   return (bytes / (1024 * 1024)).toFixed(2) + ' MB'
 }
 
+// ─── Robust Native ZIP Entry Reader (Browser DecompressionStream) ─────────────
+
+export async function readZipEntryText(buffer, targetRegex) {
+  try {
+    const bytes = new Uint8Array(buffer)
+    const view = new DataView(buffer)
+    const len = bytes.length
+
+    let offset = 0
+    while (offset < len - 30) {
+      // Look for ZIP local file header signature 0x04034b50
+      if (view.getUint32(offset, true) === 0x04034b50) {
+        const compressionMethod = view.getUint16(offset + 8, true)
+        const compressedSize = view.getUint32(offset + 18, true)
+        const fileNameLength = view.getUint16(offset + 26, true)
+        const extraFieldLength = view.getUint16(offset + 28, true)
+
+        const fileNameBytes = bytes.subarray(offset + 30, offset + 30 + fileNameLength)
+        const entryName = new TextDecoder('utf-8').decode(fileNameBytes)
+
+        const dataOffset = offset + 30 + fileNameLength + extraFieldLength
+
+        if (targetRegex.test(entryName)) {
+          // If compressed size is 0 in local header (data descriptor used), search next header
+          let actualCompressedSize = compressedSize
+          if (actualCompressedSize === 0) {
+            actualCompressedSize = Math.min(1024 * 1024, len - dataOffset)
+          }
+
+          const compressedData = bytes.subarray(dataOffset, dataOffset + actualCompressedSize)
+
+          if (compressionMethod === 0) {
+            // Uncompressed
+            return new TextDecoder('utf-8').decode(compressedData)
+          } else if (compressionMethod === 8) {
+            // Deflate compression -> Native DecompressionStream
+            try {
+              const ds = new DecompressionStream('deflate-raw')
+              const writer = ds.writable.getWriter()
+              writer.write(compressedData)
+              writer.close()
+              const response = new Response(ds.readable)
+              const decompressed = await response.arrayBuffer()
+              return new TextDecoder('utf-8').decode(decompressed)
+            } catch (decompErr) {
+              console.warn('DecompressionStream error on entry:', entryName, decompErr)
+            }
+          }
+        }
+
+        offset = dataOffset + (compressedSize || 1)
+      } else {
+        offset++
+      }
+    }
+  } catch (err) {
+    console.warn('readZipEntryText error:', err)
+  }
+  return null
+}
+
 // ─── Robust PDF Page Counter (Binary Scanner + PDF.js Fallback) ───────────────
 
 export function countPdfPagesFromBinary(buffer) {
   try {
     const bytes = new Uint8Array(buffer)
-    // Decode latin1 to preserve byte indices
     const text = new TextDecoder('latin1').decode(bytes)
 
-    // Method A: Look for /Type /Pages /Count <number> (Root pages tree dictionary)
+    // Method A: Root Pages tree dictionary count (/Type /Pages ... /Count N)
+    const pagesDictMatches = text.match(/\/Type\s*\/Pages[\s\S]{0,300}?\/Count\s+(\d+)/gi)
+    if (pagesDictMatches && pagesDictMatches.length > 0) {
+      let maxCount = 0
+      for (const m of pagesDictMatches) {
+        const numMatch = m.match(/\/Count\s+(\d+)/i)
+        if (numMatch) {
+          const num = parseInt(numMatch[1], 10)
+          if (!isNaN(num) && num > maxCount && num < 10000) maxCount = num
+        }
+      }
+      if (maxCount > 0) return maxCount
+    }
+
+    // Method B: General /Count N
     const countMatches = text.match(/\/Count\s+(\d+)/g)
     if (countMatches && countMatches.length > 0) {
       let maxCount = 0
@@ -83,13 +157,19 @@ export function countPdfPagesFromBinary(buffer) {
       if (maxCount > 0) return maxCount
     }
 
-    // Method B: Count /Type /Page objects (excluding /Pages)
+    // Method C: Linearized PDF header /N <count>
+    const linMatch = text.match(/\/Linearized\s+[\s\S]{0,100}?\/N\s+(\d+)/i)
+    if (linMatch && parseInt(linMatch[1], 10) > 0) {
+      return parseInt(linMatch[1], 10)
+    }
+
+    // Method D: Count /Type /Page objects (excluding /Pages)
     const pageMatches = text.match(/\/Type\s*\/Page(?![a-zA-Z])/g)
     if (pageMatches && pageMatches.length > 0) {
       return pageMatches.length
     }
 
-    // Method C: Alternate PDF dictionary syntax [/Type/Page]
+    // Method E: Alternate PDF dictionary syntax [/Type/Page]
     const altMatches = text.match(/\/Type\/Page(?![a-zA-Z])/g)
     if (altMatches && altMatches.length > 0) {
       return altMatches.length
@@ -104,7 +184,10 @@ export function countPdfPagesFromBinary(buffer) {
 
 async function pdfThumbnail(arrayBuffer) {
   try {
-    const pdf = await pdfjsLib.getDocument({ data: new Uint8Array(arrayBuffer.slice(0)) }).promise
+    const pdf = await pdfjsLib.getDocument({
+      data: new Uint8Array(arrayBuffer.slice(0)),
+      disableFontFace: true,
+    }).promise
     const page = await pdf.getPage(1)
     const vp = page.getViewport({ scale: 0.5 })
     const canvas = document.createElement('canvas')
@@ -122,22 +205,22 @@ async function pdfThumbnail(arrayBuffer) {
 async function processPdf(file) {
   const arrayBuffer = await file.arrayBuffer()
   
-  // 1. Instant binary count
+  // 1. Instant binary count fallback baseline
   const binaryCount = countPdfPagesFromBinary(arrayBuffer)
   let totalPages = binaryCount
 
-  // 2. Try PDF.js for exact verification & thumbnail
+  // 2. Exact PDF.js inspection
   try {
-    const pdfTask = pdfjsLib.getDocument({ data: new Uint8Array(arrayBuffer.slice(0)) })
-    const pdf = await Promise.race([
-      pdfTask.promise,
-      new Promise((_, reject) => setTimeout(() => reject(new Error('PDF.js timeout')), 3000)),
-    ])
+    const pdfTask = pdfjsLib.getDocument({
+      data: new Uint8Array(arrayBuffer.slice(0)),
+      disableFontFace: true,
+    })
+    const pdf = await pdfTask.promise
     if (pdf && pdf.numPages && pdf.numPages > 0) {
       totalPages = pdf.numPages
     }
   } catch (err) {
-    console.warn('PDF.js parser error (using binary count):', err)
+    console.warn('PDF.js exact parser error (using binary count):', err)
   }
 
   const thumbnail = await pdfThumbnail(arrayBuffer)
@@ -170,7 +253,6 @@ async function processImage(file, imageFit = 'fit') {
           if (imgRatio > pageRatio) { h = pageH; w = pageH * imgRatio; x = (pageW - w) / 2 }
           else { w = pageW; h = pageW / imgRatio; y = (pageH - h) / 2 }
         }
-        // 'stretch' uses full page w/h
 
         const canvas = document.createElement('canvas')
         canvas.width = img.width; canvas.height = img.height
@@ -236,7 +318,6 @@ async function processText(file) {
 
 async function processHtml(file) {
   const html = await file.text()
-  // Render in hidden iframe, capture via canvas
   return new Promise((resolve, reject) => {
     const iframe = document.createElement('iframe')
     iframe.style.cssText = 'position:fixed;top:-9999px;left:-9999px;width:794px;height:1123px;border:none;'
@@ -263,47 +344,68 @@ async function processHtml(file) {
 
 // ─── Office Processor (DOC/DOCX/PPT/PPTX/XLS/XLSX/RTF) ───────────────────────
 
-export function countOfficeDocumentPages(buffer, fileName = '') {
+export async function countOfficeDocumentPages(buffer, fileName = '') {
   try {
-    const bytes = new Uint8Array(buffer)
     const ext = fileName.split('.').pop().toLowerCase()
-    
-    // Decode start (first 6MB) and end (last 6MB) where ZIP local and central directory headers live
-    let text = ''
-    if (bytes.length <= 12 * 1024 * 1024) {
-      text = new TextDecoder('latin1').decode(bytes)
-    } else {
-      const start = new TextDecoder('latin1').decode(bytes.subarray(0, 6 * 1024 * 1024))
-      const end = new TextDecoder('latin1').decode(bytes.subarray(bytes.length - 6 * 1024 * 1024))
-      text = start + ' ' + end
+
+    // ── DOCX / DOC ──
+    if (ext === 'docx' || ext === 'doc') {
+      // 1. Try reading decompressed docProps/app.xml
+      const appXml = await readZipEntryText(buffer, /docProps\/app\.xml$/i)
+      if (appXml) {
+        const pageMatch = appXml.match(/<Pages>(\d+)<\/Pages>/i)
+        if (pageMatch && parseInt(pageMatch[1], 10) > 0) {
+          return parseInt(pageMatch[1], 10)
+        }
+      }
+
+      // 2. Try reading decompressed word/document.xml to count page breaks
+      const docXml = await readZipEntryText(buffer, /word\/document\.xml$/i)
+      if (docXml) {
+        const renderedBreaks = docXml.match(/w:lastRenderedPageBreak/gi)
+        const hardBreaks = docXml.match(/w:type="page"/gi)
+        const brPage = docXml.match(/<w:br[^>]*?w:type="page"/gi)
+        const totalBreaks = (renderedBreaks ? renderedBreaks.length : 0) + 
+                            (hardBreaks ? hardBreaks.length : 0) +
+                            (brPage ? brPage.length : 0)
+        if (totalBreaks > 0) return totalBreaks + 1
+
+        // Fallback: estimate from word / character count in document
+        if (appXml) {
+          const wordsMatch = appXml.match(/<Words>(\d+)<\/Words>/i)
+          if (wordsMatch && parseInt(wordsMatch[1], 10) > 0) {
+            const words = parseInt(wordsMatch[1], 10)
+            return Math.max(1, Math.ceil(words / 400))
+          }
+        }
+      }
     }
 
+    // ── PPTX / PPT ──
     if (ext === 'pptx' || ext === 'ppt') {
-      // 1. Check all unique ppt/slides/slide<number>.xml in ZIP headers
+      // 1. Check docProps/app.xml <Slides>N</Slides>
+      const appXml = await readZipEntryText(buffer, /docProps\/app\.xml$/i)
+      if (appXml) {
+        const slideMatch = appXml.match(/<Slides>(\d+)<\/Slides>/i)
+        if (slideMatch && parseInt(slideMatch[1], 10) > 0) {
+          return parseInt(slideMatch[1], 10)
+        }
+      }
+
+      // 2. Scan ZIP headers for all unique ppt/slides/slideN.xml
+      const bytes = new Uint8Array(buffer)
+      const text = new TextDecoder('latin1').decode(bytes)
       const slideMatches = text.match(/ppt\/slides\/slide(\d+)\.xml/gi)
       if (slideMatches && slideMatches.length > 0) {
         const uniqueSlides = new Set(slideMatches.map(s => s.toLowerCase()))
         if (uniqueSlides.size > 0) return uniqueSlides.size
       }
-
-      // 2. Check XML tag <Slides>N</Slides>
-      const tagMatch = text.match(/<Slides>(\d+)<\/Slides>/i)
-      if (tagMatch && parseInt(tagMatch[1], 10) > 0) return parseInt(tagMatch[1], 10)
     }
 
-    if (ext === 'docx' || ext === 'doc') {
-      // 1. Check <Pages>N</Pages>
-      const pageMatch = text.match(/<Pages>(\d+)<\/Pages>/i)
-      if (pageMatch && parseInt(pageMatch[1], 10) > 0) return parseInt(pageMatch[1], 10)
-      
-      // 2. Count page breaks
-      const pageBreaks = text.match(/w:type="page"/gi)
-      const renderedBreaks = text.match(/w:lastRenderedPageBreak/gi)
-      const totalBreaks = (pageBreaks ? pageBreaks.length : 0) + (renderedBreaks ? renderedBreaks.length : 0)
-      if (totalBreaks > 0) return totalBreaks + 1
-    }
-
+    // ── XLSX / XLS ──
     if (ext === 'xlsx' || ext === 'xls') {
+      const bytes = new Uint8Array(buffer)
+      const text = new TextDecoder('latin1').decode(bytes)
       const sheetMatches = text.match(/xl\/worksheets\/sheet(\d+)\.xml/gi)
       if (sheetMatches && sheetMatches.length > 0) {
         const uniqueSheets = new Set(sheetMatches.map(s => s.toLowerCase()))
@@ -319,7 +421,7 @@ export function countOfficeDocumentPages(buffer, fileName = '') {
 async function estimateOfficePages(file) {
   try {
     const buffer = await file.arrayBuffer()
-    return countOfficeDocumentPages(buffer, file.name)
+    return await countOfficeDocumentPages(buffer, file.name)
   } catch (e) {
     console.warn('estimateOfficePages error:', e)
     return 1
