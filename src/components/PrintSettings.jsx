@@ -2,7 +2,6 @@ import { useState } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { parsePageRange } from '../utils/pageRangeParser'
 import { calcPriceBreakdown } from '../utils/pricing'
-import DocumentPreview from './DocumentPreview'
 
 function OptionButton({ active, onClick, children }) {
   return (
@@ -87,9 +86,6 @@ export default function PrintSettings({ fileInfo, settings, onChange }) {
           <p className="text-gray-400 text-xs">pages</p>
         </div>
       </div>
-
-      {/* Document Interactive Live Preview */}
-      <DocumentPreview fileInfo={fileInfo} settings={settings} />
 
       <h2 className="text-2xl font-bold text-[#222222] mb-5">Print Settings</h2>
 
