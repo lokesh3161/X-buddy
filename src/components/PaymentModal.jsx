@@ -10,8 +10,11 @@ const PAYMENT_APPS = [
   {
     id: 'phonepe',
     name: 'PhonePe',
-    description: 'Pay via PhonePe app',
-    badge: 'Fast',
+    description: 'Tap to open PhonePe app',
+    badge: 'Installed App',
+    androidPkg: 'com.phonepe.app',
+    iosScheme: 'phonepe://',
+    playStoreUrl: 'https://play.google.com/store/apps/details?id=com.phonepe.app',
     iconBg: '#5f259f',
     textColor: '#5f259f',
     borderColor: 'border-purple-200',
@@ -21,13 +24,15 @@ const PAYMENT_APPS = [
         पे
       </div>
     ),
-    getScheme: (query) => `phonepe://pay?${query}`,
   },
   {
     id: 'gpay',
     name: 'Google Pay',
-    description: 'Pay via GPay UPI',
-    badge: 'Popular',
+    description: 'Tap to open Google Pay app',
+    badge: 'Installed App',
+    androidPkg: 'com.google.android.apps.nbu.paisa.user',
+    iosScheme: 'gpay://',
+    playStoreUrl: 'https://play.google.com/store/apps/details?id=com.google.android.apps.nbu.paisa.user',
     iconBg: '#ffffff',
     textColor: '#1a73e8',
     borderColor: 'border-blue-200',
@@ -37,13 +42,15 @@ const PAYMENT_APPS = [
         <span className="text-[#4285F4]">G</span><span className="text-[#EA4335]">P</span><span className="text-[#FBBC05]">a</span><span className="text-[#34A853]">y</span>
       </div>
     ),
-    getScheme: (query) => `tez://upi/pay?${query}`,
   },
   {
     id: 'paytm',
     name: 'Paytm',
-    description: 'Pay via Paytm Wallet / UPI',
-    badge: null,
+    description: 'Tap to open Paytm app',
+    badge: 'Installed App',
+    androidPkg: 'net.one97.paytm',
+    iosScheme: 'paytm://',
+    playStoreUrl: 'https://play.google.com/store/apps/details?id=net.one97.paytm',
     iconBg: '#002970',
     textColor: '#00b9f5',
     borderColor: 'border-sky-200',
@@ -53,13 +60,15 @@ const PAYMENT_APPS = [
         Paytm
       </div>
     ),
-    getScheme: (query) => `paytmmp://pay?${query}`,
   },
   {
     id: 'bhim',
-    name: 'BHIM UPI',
-    description: 'Pay via BHIM app',
-    badge: null,
+    name: 'BHIM',
+    description: 'Tap to open BHIM app',
+    badge: 'Installed App',
+    androidPkg: 'in.org.npci.upiapp',
+    iosScheme: 'bhim://',
+    playStoreUrl: 'https://play.google.com/store/apps/details?id=in.org.npci.upiapp',
     iconBg: '#007849',
     textColor: '#007849',
     borderColor: 'border-emerald-200',
@@ -69,23 +78,6 @@ const PAYMENT_APPS = [
         BHIM
       </div>
     ),
-    getScheme: (query) => `bhim://pay?${query}`,
-  },
-  {
-    id: 'generic',
-    name: 'Other UPI Apps',
-    description: 'CRED, Amazon Pay, Bank UPI',
-    badge: 'Universal',
-    iconBg: '#F78C25',
-    textColor: '#F78C25',
-    borderColor: 'border-orange-200',
-    bgGradient: 'from-orange-50 to-white hover:from-orange-100/70',
-    icon: (
-      <div className="w-8 h-8 rounded-xl bg-gradient-to-tr from-[#F7931E] to-amber-400 text-white flex items-center justify-center font-extrabold text-xs shadow-xs">
-        UPI
-      </div>
-    ),
-    getScheme: (query) => `upi://pay?${query}`,
   },
 ]
 
@@ -97,7 +89,7 @@ export default function PaymentModal({ total, orderMeta, onSuccess, onClose }) {
   const [viewMode, setViewMode] = useState('apps') // 'apps' | 'qr'
   const [desktopNotice, setDesktopNotice] = useState('')
 
-  // Build dynamic standard UPI URI
+  // Build dynamic standard UPI URI strictly for the QR code display only
   const note = `XBuddy Print ${orderMeta?.fileName ? orderMeta.fileName.slice(0, 15) : 'Order'}`
   const upiQuery = `pa=${encodeURIComponent(UPI_ID)}&pn=${encodeURIComponent(PAYEE_NAME)}&am=${total}&cu=INR&tn=${encodeURIComponent(note)}`
   const genericUpiUri = `upi://pay?${upiQuery}`
@@ -108,19 +100,16 @@ export default function PaymentModal({ total, orderMeta, onSuccess, onClose }) {
     const isAndroid = typeof navigator !== 'undefined' && /android/i.test(navigator.userAgent || '')
     const isIOS = typeof navigator !== 'undefined' && /iphone|ipad|ipod/i.test(navigator.userAgent || '')
 
-    // Debug logging without sensitive credentials
-    console.log('[X Buddy Payment] Selected App:', app.name)
-    console.log('[X Buddy Payment] Device Type:', isMobile ? (isAndroid ? 'Android' : (isIOS ? 'iOS' : 'Mobile')) : 'Desktop')
-    console.log('[X Buddy Payment] Payable Amount: ₹' + total)
-    console.log('[X Buddy Payment] Order Note:', note)
-    console.log('[X Buddy Payment] Standard UPI URI:', genericUpiUri)
+    // Debug logging
+    console.log('[X Buddy App Launcher] Selected App:', app.name)
+    console.log('[X Buddy App Launcher] Device:', isMobile ? (isAndroid ? 'Android' : (isIOS ? 'iOS' : 'Mobile')) : 'Desktop')
 
     if (!isMobile) {
-      // Desktop / laptop fallback
-      console.log('[X Buddy Payment] Desktop browser detected. Switching to QR view.')
+      // Desktop / laptop: do not attempt to launch mobile apps
+      console.log('[X Buddy App Launcher] Desktop detected. Prompting user to use mobile device or QR code.')
       setSelectedApp(app)
       setViewMode('qr')
-      setDesktopNotice('Open this page on your phone or scan the QR code using any UPI app.')
+      setDesktopNotice('Please use your mobile device to open the payment app, or scan the QR code below.')
       return
     }
 
@@ -128,78 +117,37 @@ export default function PaymentModal({ total, orderMeta, onSuccess, onClose }) {
     setSelectedApp(app)
     setStep('LAUNCHING')
 
-    let attemptedSpecific = false
-
-    if (app.id === 'phonepe') {
-      attemptedSpecific = true
-      console.log('[X Buddy Payment] Launching PhonePe Android package intent: com.phonepe.app')
-      
-      // Official Android intent syntax targeting PhonePe package directly
-      const phonePeUri = isAndroid 
-        ? `intent://pay?${upiQuery}#Intent;scheme=upi;package=com.phonepe.app;end` 
-        : `phonepe://pay?${upiQuery}`
+    // Android: Direct pure app launcher intent (NO payment parameters or prefilled amounts)
+    if (isAndroid && app.androidPkg) {
+      const androidLauncherIntent = `intent:#Intent;package=${app.androidPkg};action=android.intent.action.MAIN;category=android.intent.category.LAUNCHER;end`
+      console.log(`[X Buddy App Launcher] Launching ${app.name} via Android Intent:`, androidLauncherIntent)
 
       try {
         const a = document.createElement('a')
-        a.href = phonePeUri
+        a.href = androidLauncherIntent
         a.rel = 'noopener noreferrer'
         document.body.appendChild(a)
         a.click()
         document.body.removeChild(a)
       } catch (err) {
-        console.log('[X Buddy Payment] PhonePe launch trigger error:', err)
-        window.location.href = genericUpiUri
+        console.warn(`[X Buddy App Launcher] Failed to trigger ${app.name} intent:`, err)
       }
-    } else if (app.id === 'gpay') {
-      attemptedSpecific = true
-      console.log('[X Buddy Payment] Google Pay launch attempted')
-      const gpayUri = isAndroid 
-        ? `intent://pay?${upiQuery}#Intent;scheme=upi;package=com.google.android.apps.nbu.paisa.user;end` 
-        : `gpay://upi/pay?${upiQuery}`
+    } else if (isIOS && app.iosScheme) {
+      // iOS: Direct custom URL scheme launcher
+      console.log(`[X Buddy App Launcher] Launching ${app.name} via iOS scheme:`, app.iosScheme)
       try {
         const a = document.createElement('a')
-        a.href = gpayUri
+        a.href = app.iosScheme
         a.rel = 'noopener noreferrer'
         document.body.appendChild(a)
         a.click()
         document.body.removeChild(a)
-      } catch {
-        window.location.href = genericUpiUri
-      }
-    } else if (app.id === 'paytm') {
-      attemptedSpecific = true
-      console.log('[X Buddy Payment] Paytm launch attempted')
-      const paytmUri = isAndroid
-        ? `intent://pay?${upiQuery}#Intent;scheme=upi;package=net.one97.paytm;end`
-        : `paytmmp://pay?${upiQuery}`
-      try {
-        const a = document.createElement('a')
-        a.href = paytmUri
-        a.rel = 'noopener noreferrer'
-        document.body.appendChild(a)
-        a.click()
-        document.body.removeChild(a)
-      } catch {
-        window.location.href = genericUpiUri
-      }
-    } else {
-      // BHIM & Other UPI Apps: Standard Universal UPI Intent
-      console.log('[X Buddy Payment] Standard UPI intent launched')
-      try {
-        const a = document.createElement('a')
-        a.href = genericUpiUri
-        a.rel = 'noopener noreferrer'
-        document.body.appendChild(a)
-        a.click()
-        document.body.removeChild(a)
-      } catch {
-        window.location.href = genericUpiUri
+      } catch (err) {
+        console.warn(`[X Buddy App Launcher] Failed to trigger ${app.name} scheme:`, err)
       }
     }
 
-    console.log('[X Buddy Payment] App-specific launch status:', { attemptedSpecific })
-
-    // Auto prompt payment completion check after 2.5 seconds
+    // After 2.5 seconds, present the completion verification step
     setTimeout(() => {
       setStep('DID_YOU_PAY')
     }, 2500)
@@ -292,8 +240,8 @@ export default function PaymentModal({ total, orderMeta, onSuccess, onClose }) {
               {viewMode === 'apps' && (
                 <div className="space-y-2.5 mb-4">
                   <p className="text-[11px] font-semibold text-slate-500 mb-1 flex items-center justify-between">
-                    <span>Pay ₹{total} using:</span>
-                    <span className="text-[10px] text-emerald-600 font-bold bg-emerald-50 px-1.5 py-0.5 rounded">Pre-filled Amount</span>
+                    <span>Select app to open:</span>
+                    <span className="text-[10px] text-emerald-600 font-bold bg-emerald-50 px-1.5 py-0.5 rounded">Direct Launcher</span>
                   </p>
 
                   {PAYMENT_APPS.map((app) => (
@@ -308,17 +256,12 @@ export default function PaymentModal({ total, orderMeta, onSuccess, onClose }) {
                         <div className="text-left">
                           <div className="flex items-center gap-1.5">
                             <span className="font-bold text-slate-900 text-xs">{app.name}</span>
-                            {app.badge && (
-                              <span className="text-[9px] font-extrabold px-1.5 py-0.2 rounded-full bg-orange-100 text-[#F78C25]">
-                                {app.badge}
-                              </span>
-                            )}
                           </div>
                           <p className="text-[10px] text-slate-400">{app.description}</p>
                         </div>
                       </div>
                       <span className="font-bold text-xs flex items-center gap-1 group-hover:translate-x-0.5 transition-transform" style={{ color: app.textColor }}>
-                        Pay ₹{total} <ArrowRight className="w-3 h-3" />
+                        Open {app.name} <ArrowRight className="w-3 h-3" />
                       </span>
                     </button>
                   ))}
