@@ -11,22 +11,21 @@ export default function PaymentModal({ total, orderMeta, onSuccess, onClose }) {
   const [activeTab, setActiveTab] = useState('apps') // 'apps' | 'qr'
 
   function handleOpenApp(appKey) {
-    const note = `XBuddy Print ${orderMeta?.fileName ? orderMeta.fileName.slice(0, 15) : 'Order'}`
-    const upiQuery = `pa=${encodeURIComponent(UPI_ID)}&pn=${encodeURIComponent(PAYEE_NAME)}&am=${total}&cu=INR&tn=${encodeURIComponent(note)}`
+    const isAndroid = typeof navigator !== 'undefined' && /android/i.test(navigator.userAgent || '')
+    const isIOS = typeof navigator !== 'undefined' && /iphone|ipad|ipod/i.test(navigator.userAgent || '')
 
-    // Official NPCI app-specific URI schemes
+    // Direct app launchers
     const APP_SCHEMES = {
-      phonepe: `phonepe://pay?${upiQuery}`,
-      gpay: `tez://upi/pay?${upiQuery}`,
-      paytm: `paytmmp://pay?${upiQuery}`,
-      bhim: `bhim://pay?${upiQuery}`,
-      generic: `upi://pay?${upiQuery}`,
+      phonepe: 'phonepe://',
+      gpay: isIOS ? 'gpay://' : 'tez://',
+      paytm: isIOS ? 'paytm://' : 'paytmmp://',
+      bhim: 'bhim://',
+      generic: 'upi://pay',
     }
 
-    const targetUrl = APP_SCHEMES[appKey] || APP_SCHEMES.generic
+    const targetUrl = APP_SCHEMES[appKey] || 'upi://pay'
 
     try {
-      // Create and trigger a native link click to avoid popup/intent blocking
       const a = document.createElement('a')
       a.href = targetUrl
       a.rel = 'noopener noreferrer'
@@ -34,8 +33,8 @@ export default function PaymentModal({ total, orderMeta, onSuccess, onClose }) {
       a.click()
       document.body.removeChild(a)
     } catch (err) {
-      console.warn('UPI direct trigger fallback:', err)
-      window.location.href = `upi://pay?${upiQuery}`
+      console.warn('App open fallback:', err)
+      window.location.href = targetUrl
     }
   }
 
