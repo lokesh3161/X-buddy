@@ -13,54 +13,30 @@ export default function PaymentModal({ total, orderMeta, onSuccess, onClose }) {
   function handleOpenApp(appKey) {
     const note = `XBuddy Print ${orderMeta?.fileName ? orderMeta.fileName.slice(0, 15) : 'Order'}`
     const upiQuery = `pa=${encodeURIComponent(UPI_ID)}&pn=${encodeURIComponent(PAYEE_NAME)}&am=${total}&cu=INR&tn=${encodeURIComponent(note)}`
-    
-    const isAndroid = typeof navigator !== 'undefined' && /android/i.test(navigator.userAgent || '')
-    const isIOS = typeof navigator !== 'undefined' && /iphone|ipad|ipod/i.test(navigator.userAgent || '')
 
-    const APP_CONFIGS = {
-      phonepe: {
-        package: 'com.phonepe.app',
-        iosScheme: 'phonepe://pay',
-        fallback: `phonepe://pay?${upiQuery}`,
-      },
-      gpay: {
-        package: 'com.google.android.apps.nbu.paisa.user',
-        iosScheme: 'gpay://upi/pay',
-        fallback: `gpay://upi/pay?${upiQuery}`,
-      },
-      paytm: {
-        package: 'net.one97.paytm',
-        iosScheme: 'paytmmp://pay',
-        fallback: `paytmmp://pay?${upiQuery}`,
-      },
-      bhim: {
-        package: 'in.org.npci.upiapp',
-        iosScheme: 'bhim://pay',
-        fallback: `bhim://pay?${upiQuery}`,
-      },
-      generic: {
-        package: '',
-        iosScheme: 'upi://pay',
-        fallback: `upi://pay?${upiQuery}`,
-      },
+    // Official NPCI app-specific URI schemes
+    const APP_SCHEMES = {
+      phonepe: `phonepe://pay?${upiQuery}`,
+      gpay: `tez://upi/pay?${upiQuery}`,
+      paytm: `paytmmp://pay?${upiQuery}`,
+      bhim: `bhim://pay?${upiQuery}`,
+      generic: `upi://pay?${upiQuery}`,
     }
 
-    const app = APP_CONFIGS[appKey] || APP_CONFIGS.generic
+    const targetUrl = APP_SCHEMES[appKey] || APP_SCHEMES.generic
 
-    if (isAndroid && app.package) {
-      // Android Intent targeting the exact specific app directly
-      const androidIntent = `intent://pay?${upiQuery}#Intent;scheme=upi;package=${app.package};end`
-      window.location.href = androidIntent
-      return
+    try {
+      // Create and trigger a native link click to avoid popup/intent blocking
+      const a = document.createElement('a')
+      a.href = targetUrl
+      a.rel = 'noopener noreferrer'
+      document.body.appendChild(a)
+      a.click()
+      document.body.removeChild(a)
+    } catch (err) {
+      console.warn('UPI direct trigger fallback:', err)
+      window.location.href = `upi://pay?${upiQuery}`
     }
-
-    if (isIOS && app.iosScheme) {
-      window.location.href = `${app.iosScheme}?${upiQuery}`
-      return
-    }
-
-    // Default browser / desktop fallback
-    window.location.href = app.fallback || `upi://pay?${upiQuery}`
   }
 
   function copyUpiId() {
