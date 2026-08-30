@@ -132,8 +132,9 @@ export default function PaymentModal({ total, orderMeta, onSuccess, onClose }) {
 
     if (app.id === 'phonepe') {
       attemptedSpecific = true
-      console.log('[X Buddy Payment] PhonePe launch attempted with standard UPI fallback')
+      console.log('[X Buddy Payment] Launching PhonePe Android package intent: com.phonepe.app')
       
+      // Official Android intent syntax targeting PhonePe package directly
       const phonePeUri = isAndroid 
         ? `intent://pay?${upiQuery}#Intent;scheme=upi;package=com.phonepe.app;end` 
         : `phonepe://pay?${upiQuery}`
@@ -146,28 +147,15 @@ export default function PaymentModal({ total, orderMeta, onSuccess, onClose }) {
         a.click()
         document.body.removeChild(a)
       } catch (err) {
-        console.log('[X Buddy Payment] PhonePe direct launch exception, falling back to standard UPI:', err)
+        console.log('[X Buddy Payment] PhonePe launch trigger error:', err)
         window.location.href = genericUpiUri
       }
-
-      // Graceful fallback to standard upi://pay without showing any error
-      setTimeout(() => {
-        console.log('[X Buddy Payment] Safe fallback: triggering standard upi://pay intent')
-        try {
-          const fallbackLink = document.createElement('a')
-          fallbackLink.href = genericUpiUri
-          fallbackLink.rel = 'noopener noreferrer'
-          document.body.appendChild(fallbackLink)
-          fallbackLink.click()
-          document.body.removeChild(fallbackLink)
-        } catch {
-          // ignore
-        }
-      }, 1200)
     } else if (app.id === 'gpay') {
       attemptedSpecific = true
       console.log('[X Buddy Payment] Google Pay launch attempted')
-      const gpayUri = isAndroid ? `tez://upi/pay?${upiQuery}` : `gpay://upi/pay?${upiQuery}`
+      const gpayUri = isAndroid 
+        ? `intent://pay?${upiQuery}#Intent;scheme=upi;package=com.google.android.apps.nbu.paisa.user;end` 
+        : `gpay://upi/pay?${upiQuery}`
       try {
         const a = document.createElement('a')
         a.href = gpayUri
@@ -181,7 +169,9 @@ export default function PaymentModal({ total, orderMeta, onSuccess, onClose }) {
     } else if (app.id === 'paytm') {
       attemptedSpecific = true
       console.log('[X Buddy Payment] Paytm launch attempted')
-      const paytmUri = `paytmmp://pay?${upiQuery}`
+      const paytmUri = isAndroid
+        ? `intent://pay?${upiQuery}#Intent;scheme=upi;package=net.one97.paytm;end`
+        : `paytmmp://pay?${upiQuery}`
       try {
         const a = document.createElement('a')
         a.href = paytmUri
@@ -399,13 +389,26 @@ export default function PaymentModal({ total, orderMeta, onSuccess, onClose }) {
               <div className="p-3 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-500">
                 After completing the payment, return here to submit your transaction ID.
               </div>
-              <button
-                type="button"
-                onClick={() => setStep('DID_YOU_PAY')}
-                className="w-full py-2.5 bg-[#F78C25] text-white font-bold text-xs rounded-xl shadow-xs hover:bg-[#e07010] transition-colors cursor-pointer"
-              >
-                I Completed the Payment →
-              </button>
+
+              <div className="space-y-2 pt-1">
+                <button
+                  type="button"
+                  onClick={() => setStep('DID_YOU_PAY')}
+                  className="w-full py-2.5 bg-[#F78C25] text-white font-bold text-xs rounded-xl shadow-xs hover:bg-[#e07010] transition-colors cursor-pointer"
+                >
+                  I Completed the Payment →
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setViewMode('qr')
+                    setStep('SELECT')
+                  }}
+                  className="w-full py-2 text-slate-500 hover:text-slate-800 text-xs font-semibold rounded-xl transition-colors cursor-pointer"
+                >
+                  Not installed? Use UPI QR Code
+                </button>
+              </div>
             </motion.div>
           )}
 
@@ -432,10 +435,13 @@ export default function PaymentModal({ total, orderMeta, onSuccess, onClose }) {
                 </button>
                 <button
                   type="button"
-                  onClick={() => setStep('SELECT')}
+                  onClick={() => {
+                    setViewMode('qr')
+                    setStep('SELECT')
+                  }}
                   className="w-full py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-700 font-semibold text-xs rounded-xl transition-colors flex items-center justify-center gap-1.5 cursor-pointer"
                 >
-                  <RotateCcw className="w-3.5 h-3.5" /> No, Try Again / Scan QR
+                  <RotateCcw className="w-3.5 h-3.5" /> No / Use UPI QR Code
                 </button>
               </div>
             </motion.div>
