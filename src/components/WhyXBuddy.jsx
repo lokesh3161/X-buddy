@@ -17,7 +17,7 @@ export default function WhyXBuddy() {
     {
       icon: Wallet,
       title: 'Transparent Pricing',
-      description: 'Clear per-page rates and transparent service fees with instant digital UPI verification.',
+      description: 'Clear per-page rates and transparent digital processing fees with instant UPI verification.',
     },
     {
       icon: ShieldCheck,

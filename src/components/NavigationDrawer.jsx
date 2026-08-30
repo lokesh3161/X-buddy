@@ -4,6 +4,7 @@ export default function NavigationDrawer({ isOpen, onClose, onNavigate, currentS
   const menuItems = [
     { id: 'home', label: 'Home', icon: '🏠', action: () => onNavigate('home') },
     { id: 'my_orders', label: 'My Orders', icon: '📋', action: () => onNavigate('my_orders') },
+    { id: 'admin', label: 'Shop Dashboard', icon: '🏪', action: () => onNavigate('admin') },
     { id: 'about', label: 'About X Buddy', icon: '💡', action: () => onNavigate('about') },
     { id: 'help', label: 'Help', icon: '❓', action: () => onNavigate('help') },
   ]

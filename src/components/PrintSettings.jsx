@@ -32,17 +32,23 @@ function SettingCard({ title, children }) {
 
 export default function PrintSettings({ fileInfo, settings, onChange }) {
   const { colorMode, sideMode, copies, pageSize, orientation, margins, pageRange, customPages, imageFit } = settings
-  const set = (key, val) => onChange({ ...settings, [key]: val })
+  const [showMoreOptions, setShowMoreOptions] = useState(false)
+
   const isImage = fileInfo?.typeInfo?.category === 'image'
+  const isDocument = fileInfo?.typeInfo?.category === 'document'
 
-  const hasCustomAdvanced = pageRange === 'custom' || pageSize !== 'A4' || orientation !== 'portrait' || margins !== 'normal'
-  const [showMoreOptions, setShowMoreOptions] = useState(hasCustomAdvanced)
+  function set(key, value) {
+    onChange(prev => ({ ...prev, [key]: value }))
+  }
 
-  const customParse = pageRange === 'custom' && customPages
-    ? parsePageRange(customPages, fileInfo.totalPages)
-    : { valid: false, error: 'Please enter page numbers or ranges.' }
+  // Check if custom page range is valid
+  const customParse = parsePageRange(customPages, fileInfo.totalPages)
 
-  const customBreakdown = customParse.valid
+  // Has non-default advanced options selected
+  const hasCustomAdvanced = pageSize !== 'A4' || orientation !== 'portrait' || margins !== 'normal' || (pageRange === 'custom' && customPages.trim().length > 0)
+
+  // Calculate live breakdown for custom range preview
+  const customBreakdown = customParse.valid && customPages.trim().length > 0
     ? calcPriceBreakdown({
         totalPages: fileInfo.totalPages,
         colorMode,
@@ -234,8 +240,8 @@ export default function PrintSettings({ fileInfo, settings, onChange }) {
                             <span className="font-semibold text-gray-800">₹{customBreakdown.printingCost}</span>
                           </div>
                           <div className="flex justify-between">
-                            <span className="text-gray-500">X Buddy Service Fee:</span>
-                            <span className="font-semibold text-gray-800">+₹{customBreakdown.serviceFee}</span>
+                            <span className="text-gray-500">Digital Processing Fee:</span>
+                            <span className="font-semibold text-gray-800">+₹{customBreakdown.digitalProcessingFee}</span>
                           </div>
                           <div className="flex justify-between border-t border-orange-200 pt-2 mt-1">
                             <span className="font-medium text-gray-800 font-bold">Total:</span>

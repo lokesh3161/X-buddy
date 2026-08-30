@@ -53,7 +53,7 @@ const INITIAL_ORDERS = [
   { id: 'XB-1086', studentName: 'Vikas Gupta', phone: '9988776655', fileName: 'Research_Paper.pdf', pages: 12, copies: 1, printType: 'Color', printSide: 'Single', customPages: '', amount: 63, paymentStatus: 'Paid', status: 'Collected', time: '09:45 AM', date: '2026-08-29', pdfUrl: '' },
 ]
 
-const ADMIN_PASSWORD = import.meta.env.VITE_ADMIN_PASSWORD || 'Secur3#Admin99'
+const ADMIN_PASSWORD = import.meta.env.VITE_ADMIN_PASSWORD || 'xbuddy@4921'
 const formatCurrency = value => `₹${Number(value || 0).toLocaleString()}`
 
 export default function AdminDashboard() {

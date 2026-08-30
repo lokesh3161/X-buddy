@@ -62,11 +62,49 @@ export function formatBytes(bytes) {
   return (bytes / (1024 * 1024)).toFixed(2) + ' MB'
 }
 
+// ─── Robust PDF Page Counter (Binary Scanner + PDF.js Fallback) ───────────────
+
+export function countPdfPagesFromBinary(buffer) {
+  try {
+    const bytes = new Uint8Array(buffer)
+    // Decode latin1 to preserve byte indices
+    const text = new TextDecoder('latin1').decode(bytes)
+
+    // Method A: Look for /Type /Pages /Count <number> (Root pages tree dictionary)
+    const countMatches = text.match(/\/Count\s+(\d+)/g)
+    if (countMatches && countMatches.length > 0) {
+      let maxCount = 0
+      for (const m of countMatches) {
+        const num = parseInt(m.replace(/\/Count\s+/, ''), 10)
+        if (!isNaN(num) && num > maxCount && num < 10000) {
+          maxCount = num
+        }
+      }
+      if (maxCount > 0) return maxCount
+    }
+
+    // Method B: Count /Type /Page objects (excluding /Pages)
+    const pageMatches = text.match(/\/Type\s*\/Page(?![a-zA-Z])/g)
+    if (pageMatches && pageMatches.length > 0) {
+      return pageMatches.length
+    }
+
+    // Method C: Alternate PDF dictionary syntax [/Type/Page]
+    const altMatches = text.match(/\/Type\/Page(?![a-zA-Z])/g)
+    if (altMatches && altMatches.length > 0) {
+      return altMatches.length
+    }
+  } catch (e) {
+    console.warn('countPdfPagesFromBinary error:', e)
+  }
+  return 1
+}
+
 // ─── Thumbnail from first PDF page ────────────────────────────────────────────
 
 async function pdfThumbnail(arrayBuffer) {
   try {
-    const pdf = await pdfjsLib.getDocument({ data: arrayBuffer.slice(0) }).promise
+    const pdf = await pdfjsLib.getDocument({ data: new Uint8Array(arrayBuffer.slice(0)) }).promise
     const page = await pdf.getPage(1)
     const vp = page.getViewport({ scale: 0.5 })
     const canvas = document.createElement('canvas')
@@ -83,10 +121,27 @@ async function pdfThumbnail(arrayBuffer) {
 
 async function processPdf(file) {
   const arrayBuffer = await file.arrayBuffer()
-  const pdf = await pdfjsLib.getDocument({ data: arrayBuffer }).promise
-  const totalPages = pdf.numPages
+  
+  // 1. Instant binary count
+  const binaryCount = countPdfPagesFromBinary(arrayBuffer)
+  let totalPages = binaryCount
+
+  // 2. Try PDF.js for exact verification & thumbnail
+  try {
+    const pdfTask = pdfjsLib.getDocument({ data: new Uint8Array(arrayBuffer.slice(0)) })
+    const pdf = await Promise.race([
+      pdfTask.promise,
+      new Promise((_, reject) => setTimeout(() => reject(new Error('PDF.js timeout')), 3000)),
+    ])
+    if (pdf && pdf.numPages && pdf.numPages > 0) {
+      totalPages = pdf.numPages
+    }
+  } catch (err) {
+    console.warn('PDF.js parser error (using binary count):', err)
+  }
+
   const thumbnail = await pdfThumbnail(arrayBuffer)
-  return { pdfBlob: file, totalPages, thumbnail }
+  return { pdfBlob: file, totalPages: Math.max(1, totalPages), thumbnail }
 }
 
 // ─── Image Processor ─────────────────────────────────────────────────────────
@@ -207,12 +262,72 @@ async function processHtml(file) {
 }
 
 // ─── Office Processor (DOC/DOCX/PPT/PPTX/XLS/XLSX/RTF) ───────────────────────
-// Browser-side full fidelity conversion of Office formats is not possible without
-// a server. We render a clear user-facing notice page as the PDF and flag it so
-// the UI can show a warning. In a production deployment this would call a backend
-// conversion endpoint (LibreOffice / Gotenberg).
+
+export function countOfficeDocumentPages(buffer, fileName = '') {
+  try {
+    const bytes = new Uint8Array(buffer)
+    const ext = fileName.split('.').pop().toLowerCase()
+    
+    // Decode start (first 6MB) and end (last 6MB) where ZIP local and central directory headers live
+    let text = ''
+    if (bytes.length <= 12 * 1024 * 1024) {
+      text = new TextDecoder('latin1').decode(bytes)
+    } else {
+      const start = new TextDecoder('latin1').decode(bytes.subarray(0, 6 * 1024 * 1024))
+      const end = new TextDecoder('latin1').decode(bytes.subarray(bytes.length - 6 * 1024 * 1024))
+      text = start + ' ' + end
+    }
+
+    if (ext === 'pptx' || ext === 'ppt') {
+      // 1. Check all unique ppt/slides/slide<number>.xml in ZIP headers
+      const slideMatches = text.match(/ppt\/slides\/slide(\d+)\.xml/gi)
+      if (slideMatches && slideMatches.length > 0) {
+        const uniqueSlides = new Set(slideMatches.map(s => s.toLowerCase()))
+        if (uniqueSlides.size > 0) return uniqueSlides.size
+      }
+
+      // 2. Check XML tag <Slides>N</Slides>
+      const tagMatch = text.match(/<Slides>(\d+)<\/Slides>/i)
+      if (tagMatch && parseInt(tagMatch[1], 10) > 0) return parseInt(tagMatch[1], 10)
+    }
+
+    if (ext === 'docx' || ext === 'doc') {
+      // 1. Check <Pages>N</Pages>
+      const pageMatch = text.match(/<Pages>(\d+)<\/Pages>/i)
+      if (pageMatch && parseInt(pageMatch[1], 10) > 0) return parseInt(pageMatch[1], 10)
+      
+      // 2. Count page breaks
+      const pageBreaks = text.match(/w:type="page"/gi)
+      const renderedBreaks = text.match(/w:lastRenderedPageBreak/gi)
+      const totalBreaks = (pageBreaks ? pageBreaks.length : 0) + (renderedBreaks ? renderedBreaks.length : 0)
+      if (totalBreaks > 0) return totalBreaks + 1
+    }
+
+    if (ext === 'xlsx' || ext === 'xls') {
+      const sheetMatches = text.match(/xl\/worksheets\/sheet(\d+)\.xml/gi)
+      if (sheetMatches && sheetMatches.length > 0) {
+        const uniqueSheets = new Set(sheetMatches.map(s => s.toLowerCase()))
+        if (uniqueSheets.size > 0) return uniqueSheets.size
+      }
+    }
+  } catch (e) {
+    console.warn('countOfficeDocumentPages error:', e)
+  }
+  return 1
+}
+
+async function estimateOfficePages(file) {
+  try {
+    const buffer = await file.arrayBuffer()
+    return countOfficeDocumentPages(buffer, file.name)
+  } catch (e) {
+    console.warn('estimateOfficePages error:', e)
+    return 1
+  }
+}
 
 async function processOffice(file, typeInfo) {
+  const estimatedPages = await estimateOfficePages(file)
   const doc = new jsPDF({ unit: 'mm', format: 'a4' })
   const pageW = doc.internal.pageSize.getWidth()
 
@@ -245,7 +360,7 @@ async function processOffice(file, typeInfo) {
 
   return {
     pdfBlob: doc.output('blob'),
-    totalPages: 1,
+    totalPages: estimatedPages,
     thumbnail: null,
     requiresAgent: true,
     originalFile: file,

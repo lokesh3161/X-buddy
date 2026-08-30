@@ -357,10 +357,10 @@ export default function MyOrdersPage({ onStartPrinting }) {
                       <span className="font-medium text-gray-700">₹{selectedOrder.printingCost}</span>
                     </div>
                   )}
-                  {selectedOrder.serviceFee > 0 && (
+                  {(selectedOrder.digitalProcessingFee > 0 || selectedOrder.serviceFee > 0) && (
                     <div className="flex justify-between text-gray-500">
-                      <span>X Buddy Service Fee:</span>
-                      <span className="font-medium text-gray-700">+₹{selectedOrder.serviceFee}</span>
+                      <span>Digital Processing Fee:</span>
+                      <span className="font-medium text-gray-700">+₹{selectedOrder.digitalProcessingFee || selectedOrder.serviceFee}</span>
                     </div>
                   )}
                   <div className="flex justify-between border-t border-gray-200 pt-2">

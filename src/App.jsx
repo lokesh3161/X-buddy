@@ -17,13 +17,14 @@ pdfjsLib.GlobalWorkerOptions.workerSrc = new URL(
   'pdfjs-dist/build/pdf.worker.min.mjs',
   import.meta.url
 ).toString()
-import { processFile } from './utils/fileProcessor'
+import { processFile, countPdfPagesFromBinary, countOfficeDocumentPages } from './utils/fileProcessor'
 
 import ResumeBuilder from './resume-builder/ResumeBuilder'
 import NavigationDrawer from './components/NavigationDrawer'
 import MyOrdersPage from './components/MyOrdersPage'
+import AdminDashboard from './components/AdminDashboard'
 
-const STEP = { HERO: 'hero', UPLOAD: 'upload', SETTINGS: 'settings', PRINTING: 'printing', RESUME: 'resume', MY_ORDERS: 'my_orders' }
+const STEP = { HERO: 'hero', UPLOAD: 'upload', SETTINGS: 'settings', PRINTING: 'printing', RESUME: 'resume', MY_ORDERS: 'my_orders', ADMIN: 'admin' }
 const DEFAULT_SETTINGS = {
   colorMode: 'bw', sideMode: 'single', copies: 1,
   pageSize: 'A4', orientation: 'portrait', margins: 'normal',
@@ -34,16 +35,33 @@ async function getPageCountFromFile(file) {
   try {
     const result = await processFile(file)
     return result.totalPages
-  } catch {
-    // fallback for PDF
-    const buffer = await file.arrayBuffer()
-    const pdf = await pdfjsLib.getDocument({ data: buffer }).promise
-    return pdf.numPages
+  } catch (err) {
+    try {
+      const buffer = await file.arrayBuffer()
+      const ext = file.name.split('.').pop().toLowerCase()
+      if (ext === 'pdf') {
+        return countPdfPagesFromBinary(buffer)
+      } else {
+        return countOfficeDocumentPages(buffer, file.name)
+      }
+    } catch {
+      return 1
+    }
   }
 }
 
 export default function App() {
-  const [step, setStep]               = useState(STEP.HERO)
+  const [step, setStep]               = useState(() => {
+    if (typeof window !== 'undefined') {
+      if (window.location.pathname.startsWith('/admin') || window.location.hash === '#admin') {
+        return STEP.ADMIN
+      }
+      if (window.location.pathname.startsWith('/my-orders') || window.location.hash === '#orders') {
+        return STEP.MY_ORDERS
+      }
+    }
+    return STEP.HERO
+  })
   const [fileInfo, setFileInfo]       = useState(null)
   const [settings, setSettings]       = useState(DEFAULT_SETTINGS)
   const [showPayment, setShowPayment] = useState(false)
@@ -58,6 +76,9 @@ export default function App() {
       window.scrollTo({ top: 0, behavior: 'smooth' })
     } else if (target === 'my_orders') {
       setStep(STEP.MY_ORDERS)
+      window.scrollTo({ top: 0, behavior: 'smooth' })
+    } else if (target === 'admin') {
+      setStep(STEP.ADMIN)
       window.scrollTo({ top: 0, behavior: 'smooth' })
     } else if (target === 'about') {
       setStep(STEP.HERO)
@@ -110,7 +131,8 @@ export default function App() {
         printableCount,
         imageFit: settings.imageFit,
         printingCost: priceBreakdown.printingCost,
-        serviceFee: priceBreakdown.serviceFee,
+        digitalProcessingFee: priceBreakdown.digitalProcessingFee,
+        serviceFee: priceBreakdown.digitalProcessingFee,
         amount: total,
         pdfFile: fileInfo.file,
         requiresAgent: fileInfo.requiresAgent || false,
@@ -205,6 +227,9 @@ export default function App() {
                 <button onClick={() => setStep(STEP.MY_ORDERS)} className="hover:text-[#F7931E] transition-colors flex items-center gap-1">
                   📋 My Orders
                 </button>
+                <button onClick={() => setStep(STEP.ADMIN)} className="px-3 py-1 bg-orange-50 hover:bg-orange-100 text-[#F7931E] border border-orange-200 rounded-lg transition-colors flex items-center gap-1 text-xs font-bold">
+                  🏪 Shop Staff
+                </button>
               </div>
               <button
                 onClick={() => setStep(STEP.UPLOAD)}
@@ -213,7 +238,7 @@ export default function App() {
                 Print Now →
               </button>
             </div>
-          ) : step === STEP.RESUME || step === STEP.MY_ORDERS ? (
+          ) : step === STEP.RESUME || step === STEP.MY_ORDERS || step === STEP.ADMIN ? (
             <button
               onClick={handleReset}
               className="px-4 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-lg text-xs font-semibold transition-colors"
@@ -281,9 +306,9 @@ export default function App() {
                     </div>
                   </div>
                   <div className="flex items-center gap-4 text-xs text-slate-400">
-                    <a href="/admin" className="text-slate-500 hover:text-[#F7931E] font-medium transition-colors">
+                    <button onClick={() => setStep(STEP.ADMIN)} className="text-slate-500 hover:text-[#F7931E] font-medium transition-colors cursor-pointer">
                       🏪 Xerox Shop Staff Dashboard
-                    </a>
+                    </button>
                     <span className="w-1 h-1 rounded-full bg-[#F7931E]" />
                     <span>Powered by <strong className="text-slate-700 font-semibold">NextGen Labs</strong></span>
                     <span className="w-1 h-1 rounded-full bg-[#F7931E]" />
@@ -317,6 +342,12 @@ export default function App() {
           {step === STEP.MY_ORDERS && (
             <motion.div key="my_orders" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}>
               <MyOrdersPage onStartPrinting={() => setStep(STEP.UPLOAD)} />
+            </motion.div>
+          )}
+
+          {step === STEP.ADMIN && (
+            <motion.div key="admin" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}>
+              <AdminDashboard />
             </motion.div>
           )}
 
