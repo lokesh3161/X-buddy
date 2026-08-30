@@ -10,21 +10,57 @@ export default function PaymentModal({ total, orderMeta, onSuccess, onClose }) {
   const [copiedUpi, setCopiedUpi] = useState(false)
   const [activeTab, setActiveTab] = useState('apps') // 'apps' | 'qr'
 
-  function getUpiLink(appScheme) {
+  function handleOpenApp(appKey) {
     const note = `XBuddy Print ${orderMeta?.fileName ? orderMeta.fileName.slice(0, 15) : 'Order'}`
-    const params = `pa=${encodeURIComponent(UPI_ID)}&pn=${encodeURIComponent(PAYEE_NAME)}&am=${total}&cu=INR&tn=${encodeURIComponent(note)}`
+    const upiQuery = `pa=${encodeURIComponent(UPI_ID)}&pn=${encodeURIComponent(PAYEE_NAME)}&am=${total}&cu=INR&tn=${encodeURIComponent(note)}`
     
-    if (appScheme === 'phonepe') return `phonepe://pay?${params}`
-    if (appScheme === 'gpay') return `gpay://upi/pay?${params}`
-    if (appScheme === 'paytm') return `paytmmp://pay?${params}`
-    if (appScheme === 'bhim') return `bhim://pay?${params}`
-    return `upi://pay?${params}`
-  }
+    const isAndroid = typeof navigator !== 'undefined' && /android/i.test(navigator.userAgent || '')
+    const isIOS = typeof navigator !== 'undefined' && /iphone|ipad|ipod/i.test(navigator.userAgent || '')
 
-  function handleOpenApp(appScheme) {
-    const link = getUpiLink(appScheme)
-    // Direct browser redirect to launch native UPI app on mobile
-    window.location.href = link
+    const APP_CONFIGS = {
+      phonepe: {
+        package: 'com.phonepe.app',
+        iosScheme: 'phonepe://pay',
+        fallback: `phonepe://pay?${upiQuery}`,
+      },
+      gpay: {
+        package: 'com.google.android.apps.nbu.paisa.user',
+        iosScheme: 'gpay://upi/pay',
+        fallback: `gpay://upi/pay?${upiQuery}`,
+      },
+      paytm: {
+        package: 'net.one97.paytm',
+        iosScheme: 'paytmmp://pay',
+        fallback: `paytmmp://pay?${upiQuery}`,
+      },
+      bhim: {
+        package: 'in.org.npci.upiapp',
+        iosScheme: 'bhim://pay',
+        fallback: `bhim://pay?${upiQuery}`,
+      },
+      generic: {
+        package: '',
+        iosScheme: 'upi://pay',
+        fallback: `upi://pay?${upiQuery}`,
+      },
+    }
+
+    const app = APP_CONFIGS[appKey] || APP_CONFIGS.generic
+
+    if (isAndroid && app.package) {
+      // Android Intent targeting the exact specific app directly
+      const androidIntent = `intent://pay?${upiQuery}#Intent;scheme=upi;package=${app.package};end`
+      window.location.href = androidIntent
+      return
+    }
+
+    if (isIOS && app.iosScheme) {
+      window.location.href = `${app.iosScheme}?${upiQuery}`
+      return
+    }
+
+    // Default browser / desktop fallback
+    window.location.href = app.fallback || `upi://pay?${upiQuery}`
   }
 
   function copyUpiId() {
