@@ -11,10 +11,8 @@ const PAYMENT_APPS = [
     id: 'phonepe',
     name: 'PhonePe',
     description: 'Tap to open PhonePe app',
-    badge: 'Installed App',
-    androidPkg: 'com.phonepe.app',
-    iosScheme: 'phonepe://',
-    playStoreUrl: 'https://play.google.com/store/apps/details?id=com.phonepe.app',
+    androidIntent: 'intent://#Intent;scheme=phonepe;package=com.phonepe.app;action=android.intent.action.VIEW;end',
+    directScheme: 'phonepe://',
     iconBg: '#5f259f',
     textColor: '#5f259f',
     borderColor: 'border-purple-200',
@@ -29,10 +27,8 @@ const PAYMENT_APPS = [
     id: 'gpay',
     name: 'Google Pay',
     description: 'Tap to open Google Pay app',
-    badge: 'Installed App',
-    androidPkg: 'com.google.android.apps.nbu.paisa.user',
-    iosScheme: 'gpay://',
-    playStoreUrl: 'https://play.google.com/store/apps/details?id=com.google.android.apps.nbu.paisa.user',
+    androidIntent: 'intent://#Intent;scheme=tez;package=com.google.android.apps.nbu.paisa.user;action=android.intent.action.VIEW;end',
+    directScheme: 'tez://',
     iconBg: '#ffffff',
     textColor: '#1a73e8',
     borderColor: 'border-blue-200',
@@ -47,10 +43,8 @@ const PAYMENT_APPS = [
     id: 'paytm',
     name: 'Paytm',
     description: 'Tap to open Paytm app',
-    badge: 'Installed App',
-    androidPkg: 'net.one97.paytm',
-    iosScheme: 'paytm://',
-    playStoreUrl: 'https://play.google.com/store/apps/details?id=net.one97.paytm',
+    androidIntent: 'intent://#Intent;scheme=paytmmp;package=net.one97.paytm;action=android.intent.action.VIEW;end',
+    directScheme: 'paytmmp://',
     iconBg: '#002970',
     textColor: '#00b9f5',
     borderColor: 'border-sky-200',
@@ -65,10 +59,8 @@ const PAYMENT_APPS = [
     id: 'bhim',
     name: 'BHIM',
     description: 'Tap to open BHIM app',
-    badge: 'Installed App',
-    androidPkg: 'in.org.npci.upiapp',
-    iosScheme: 'bhim://',
-    playStoreUrl: 'https://play.google.com/store/apps/details?id=in.org.npci.upiapp',
+    androidIntent: 'intent://#Intent;scheme=bhim;package=in.org.npci.upiapp;action=android.intent.action.VIEW;end',
+    directScheme: 'bhim://',
     iconBg: '#007849',
     textColor: '#007849',
     borderColor: 'border-emerald-200',
@@ -106,7 +98,7 @@ export default function PaymentModal({ total, orderMeta, onSuccess, onClose }) {
 
     if (!isMobile) {
       // Desktop / laptop: do not attempt to launch mobile apps
-      console.log('[X Buddy App Launcher] Desktop detected. Prompting user to use mobile device or QR code.')
+      console.log('[X Buddy App Launcher] Desktop detected.')
       setSelectedApp(app)
       setViewMode('qr')
       setDesktopNotice('Please use your mobile device to open the payment app, or scan the QR code below.')
@@ -117,34 +109,33 @@ export default function PaymentModal({ total, orderMeta, onSuccess, onClose }) {
     setSelectedApp(app)
     setStep('LAUNCHING')
 
-    // Android: Direct pure app launcher intent (NO payment parameters or prefilled amounts)
-    if (isAndroid && app.androidPkg) {
-      const androidLauncherIntent = `intent:#Intent;package=${app.androidPkg};action=android.intent.action.MAIN;category=android.intent.category.LAUNCHER;end`
-      console.log(`[X Buddy App Launcher] Launching ${app.name} via Android Intent:`, androidLauncherIntent)
-
+    if (isAndroid && app.androidIntent) {
+      console.log(`[X Buddy App Launcher] Launching ${app.name} via Android Intent:`, app.androidIntent)
       try {
         const a = document.createElement('a')
-        a.href = androidLauncherIntent
+        a.href = app.androidIntent
         a.rel = 'noopener noreferrer'
         document.body.appendChild(a)
         a.click()
         document.body.removeChild(a)
       } catch (err) {
-        console.warn(`[X Buddy App Launcher] Failed to trigger ${app.name} intent:`, err)
+        console.warn(`[X Buddy App Launcher] Intent launch failed, falling back to direct scheme:`, err)
+        window.location.href = app.directScheme
       }
-    } else if (isIOS && app.iosScheme) {
-      // iOS: Direct custom URL scheme launcher
-      console.log(`[X Buddy App Launcher] Launching ${app.name} via iOS scheme:`, app.iosScheme)
+    } else if (isIOS && app.directScheme) {
+      console.log(`[X Buddy App Launcher] Launching ${app.name} via iOS scheme:`, app.directScheme)
       try {
         const a = document.createElement('a')
-        a.href = app.iosScheme
+        a.href = app.directScheme
         a.rel = 'noopener noreferrer'
         document.body.appendChild(a)
         a.click()
         document.body.removeChild(a)
       } catch (err) {
-        console.warn(`[X Buddy App Launcher] Failed to trigger ${app.name} scheme:`, err)
+        window.location.href = app.directScheme
       }
+    } else {
+      window.location.href = app.directScheme
     }
 
     // After 2.5 seconds, present the completion verification step
@@ -327,7 +318,7 @@ export default function PaymentModal({ total, orderMeta, onSuccess, onClose }) {
               </div>
               <div>
                 <h4 className="font-bold text-slate-900 text-base">Opening {selectedApp?.name || 'UPI App'}...</h4>
-                <p className="text-xs text-slate-400 mt-1">Please approve the payment of ₹{total} in your app.</p>
+                <p className="text-xs text-slate-400 mt-1">Please pay ₹{total} in {selectedApp?.name || 'your UPI app'} and return here.</p>
               </div>
               <div className="p-3 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-500">
                 After completing the payment, return here to submit your transaction ID.
@@ -349,7 +340,7 @@ export default function PaymentModal({ total, orderMeta, onSuccess, onClose }) {
                   }}
                   className="w-full py-2 text-slate-500 hover:text-slate-800 text-xs font-semibold rounded-xl transition-colors cursor-pointer"
                 >
-                  Not installed? Use UPI QR Code
+                  App could not be opened? Use UPI QR Code
                 </button>
               </div>
             </motion.div>
