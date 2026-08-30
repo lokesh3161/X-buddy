@@ -95,7 +95,7 @@ export default function PaymentModal({ total, orderMeta, onSuccess, onClose }) {
   const [selectedApp, setSelectedApp] = useState(null)
   const [copiedUpi, setCopiedUpi] = useState(false)
   const [viewMode, setViewMode] = useState('apps') // 'apps' | 'qr'
-  const [appNotice, setAppNotice] = useState('')
+  const [desktopNotice, setDesktopNotice] = useState('')
 
   // Build dynamic standard UPI URI
   const note = `XBuddy Print ${orderMeta?.fileName ? orderMeta.fileName.slice(0, 15) : 'Order'}`
@@ -104,29 +104,115 @@ export default function PaymentModal({ total, orderMeta, onSuccess, onClose }) {
   const dynamicQrUrl = `https://api.qrserver.com/v1/create-qr-code/?data=${encodeURIComponent(genericUpiUri)}&size=220x220&margin=4`
 
   function handleSelectApp(app) {
+    const isMobile = typeof navigator !== 'undefined' && /android|iphone|ipad|ipod/i.test(navigator.userAgent || '')
+    const isAndroid = typeof navigator !== 'undefined' && /android/i.test(navigator.userAgent || '')
+    const isIOS = typeof navigator !== 'undefined' && /iphone|ipad|ipod/i.test(navigator.userAgent || '')
+
+    // Debug logging without sensitive credentials
+    console.log('[X Buddy Payment] Selected App:', app.name)
+    console.log('[X Buddy Payment] Device Type:', isMobile ? (isAndroid ? 'Android' : (isIOS ? 'iOS' : 'Mobile')) : 'Desktop')
+    console.log('[X Buddy Payment] Payable Amount: ₹' + total)
+    console.log('[X Buddy Payment] Order Note:', note)
+    console.log('[X Buddy Payment] Standard UPI URI:', genericUpiUri)
+
+    if (!isMobile) {
+      // Desktop / laptop fallback
+      console.log('[X Buddy Payment] Desktop browser detected. Switching to QR view.')
+      setSelectedApp(app)
+      setViewMode('qr')
+      setDesktopNotice('Open this page on your phone or scan the QR code using any UPI app.')
+      return
+    }
+
+    setDesktopNotice('')
     setSelectedApp(app)
     setStep('LAUNCHING')
-    setAppNotice('')
 
-    const appUrl = app.getScheme(upiQuery)
+    let attemptedSpecific = false
 
-    // Trigger app launch via anchor click
-    try {
-      const a = document.createElement('a')
-      a.href = appUrl
-      a.rel = 'noopener noreferrer'
-      document.body.appendChild(a)
-      a.click()
-      document.body.removeChild(a)
-    } catch (err) {
-      console.warn('App scheme error:', err)
-      window.location.href = genericUpiUri
+    if (app.id === 'phonepe') {
+      attemptedSpecific = true
+      console.log('[X Buddy Payment] PhonePe launch attempted with standard UPI fallback')
+      
+      const phonePeUri = isAndroid 
+        ? `intent://pay?${upiQuery}#Intent;scheme=upi;package=com.phonepe.app;end` 
+        : `phonepe://pay?${upiQuery}`
+
+      try {
+        const a = document.createElement('a')
+        a.href = phonePeUri
+        a.rel = 'noopener noreferrer'
+        document.body.appendChild(a)
+        a.click()
+        document.body.removeChild(a)
+      } catch (err) {
+        console.log('[X Buddy Payment] PhonePe direct launch exception, falling back to standard UPI:', err)
+        window.location.href = genericUpiUri
+      }
+
+      // Graceful fallback to standard upi://pay without showing any error
+      setTimeout(() => {
+        console.log('[X Buddy Payment] Safe fallback: triggering standard upi://pay intent')
+        try {
+          const fallbackLink = document.createElement('a')
+          fallbackLink.href = genericUpiUri
+          fallbackLink.rel = 'noopener noreferrer'
+          document.body.appendChild(fallbackLink)
+          fallbackLink.click()
+          document.body.removeChild(fallbackLink)
+        } catch {
+          // ignore
+        }
+      }, 1200)
+    } else if (app.id === 'gpay') {
+      attemptedSpecific = true
+      console.log('[X Buddy Payment] Google Pay launch attempted')
+      const gpayUri = isAndroid ? `tez://upi/pay?${upiQuery}` : `gpay://upi/pay?${upiQuery}`
+      try {
+        const a = document.createElement('a')
+        a.href = gpayUri
+        a.rel = 'noopener noreferrer'
+        document.body.appendChild(a)
+        a.click()
+        document.body.removeChild(a)
+      } catch {
+        window.location.href = genericUpiUri
+      }
+    } else if (app.id === 'paytm') {
+      attemptedSpecific = true
+      console.log('[X Buddy Payment] Paytm launch attempted')
+      const paytmUri = `paytmmp://pay?${upiQuery}`
+      try {
+        const a = document.createElement('a')
+        a.href = paytmUri
+        a.rel = 'noopener noreferrer'
+        document.body.appendChild(a)
+        a.click()
+        document.body.removeChild(a)
+      } catch {
+        window.location.href = genericUpiUri
+      }
+    } else {
+      // BHIM & Other UPI Apps: Standard Universal UPI Intent
+      console.log('[X Buddy Payment] Standard UPI intent launched')
+      try {
+        const a = document.createElement('a')
+        a.href = genericUpiUri
+        a.rel = 'noopener noreferrer'
+        document.body.appendChild(a)
+        a.click()
+        document.body.removeChild(a)
+      } catch {
+        window.location.href = genericUpiUri
+      }
     }
+
+    console.log('[X Buddy Payment] App-specific launch status:', { attemptedSpecific })
 
     // Auto prompt payment completion check after 2.5 seconds
     setTimeout(() => {
       setStep('DID_YOU_PAY')
-    }, 2200)
+    }, 2500)
   }
 
   function copyUpiId() {
@@ -252,7 +338,13 @@ export default function PaymentModal({ total, orderMeta, onSuccess, onClose }) {
               {/* View: QR Code */}
               {viewMode === 'qr' && (
                 <div className="mb-4 text-center">
-                  <p className="text-xs text-slate-500 mb-2">Scan using PhonePe, GPay, Paytm, or BHIM</p>
+                  {desktopNotice ? (
+                    <div className="mb-3 p-2.5 bg-amber-50 border border-amber-200 rounded-xl text-amber-800 text-xs font-medium">
+                      📱 {desktopNotice}
+                    </div>
+                  ) : (
+                    <p className="text-xs text-slate-500 mb-2">Scan using PhonePe, GPay, Paytm, or BHIM</p>
+                  )}
                   <div className="bg-[#FFF8F2] rounded-2xl p-3.5 mb-3 mx-auto w-fit border border-orange-100 shadow-xs">
                     <img
                       src={dynamicQrUrl}
