@@ -75,7 +75,8 @@ export default function App() {
                             window.location.pathname.startsWith('/my-orders') ||
                             window.location.hash === '#orders'
       if (isDirectRoute) return false
-      return sessionStorage.getItem('xbuddy_intro_seen') !== 'true'
+      if (window.sessionStorage.getItem('xbuddy_intro_seen')) return false
+      return true
     }
     return false
   })
@@ -381,9 +382,16 @@ export default function App() {
         <PaymentModal total={total} orderMeta={orderMeta} onSuccess={handleOrderSuccess} onClose={() => setShowPayment(false)} />
       )}
 
-      {/* Cinematic Brand Intro Video Overlay */}
+      {/* Cinematic Brand Intro Native Animation Overlay */}
       {showIntro && (
-        <XBuddyIntro onComplete={() => setShowIntro(false)} />
+        <XBuddyIntro
+          onComplete={() => {
+            try {
+              window.sessionStorage.setItem('xbuddy_intro_seen', 'true')
+            } catch {}
+            setShowIntro(false)
+          }}
+        />
       )}
     </div>
   )
