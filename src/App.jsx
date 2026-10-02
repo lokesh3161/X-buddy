@@ -23,6 +23,7 @@ import ResumeBuilder from './resume-builder/ResumeBuilder'
 import NavigationDrawer from './components/NavigationDrawer'
 import MyOrdersPage from './components/MyOrdersPage'
 import AdminDashboard from './components/AdminDashboard'
+import XBuddyIntro from './components/XBuddyIntro'
 
 const STEP = { HERO: 'hero', UPLOAD: 'upload', SETTINGS: 'settings', PRINTING: 'printing', RESUME: 'resume', MY_ORDERS: 'my_orders', ADMIN: 'admin' }
 const DEFAULT_SETTINGS = {
@@ -67,6 +68,17 @@ export default function App() {
   const [showPayment, setShowPayment] = useState(false)
   const [orderId, setOrderId]         = useState(null)
   const [isDrawerOpen, setIsDrawerOpen] = useState(false)
+  const [showIntro, setShowIntro]     = useState(() => {
+    if (typeof window !== 'undefined') {
+      const isDirectRoute = window.location.pathname.startsWith('/admin') ||
+                            window.location.hash === '#admin' ||
+                            window.location.pathname.startsWith('/my-orders') ||
+                            window.location.hash === '#orders'
+      if (isDirectRoute) return false
+      return sessionStorage.getItem('xbuddy_intro_seen') !== 'true'
+    }
+    return false
+  })
   const settingsRef = useRef(null)
 
   function handleDrawerNavigate(target) {
@@ -367,6 +379,11 @@ export default function App() {
 
       {showPayment && (
         <PaymentModal total={total} orderMeta={orderMeta} onSuccess={handleOrderSuccess} onClose={() => setShowPayment(false)} />
+      )}
+
+      {/* Cinematic Brand Intro Video Overlay */}
+      {showIntro && (
+        <XBuddyIntro onComplete={() => setShowIntro(false)} />
       )}
     </div>
   )
