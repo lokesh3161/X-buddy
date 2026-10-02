@@ -1,6 +1,7 @@
 import { useEffect, useState, useRef } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { getOrderStatus } from '../utils/api'
+import PermissionCourier from './PermissionCourier'
 
 const POLL_INTERVAL_MS = 4000
 
@@ -83,6 +84,14 @@ export default function PrintStatus({ fileInfo = {}, settings = {}, orderId, onR
 
           if (step >= 6) {
             clearInterval(pollRef.current)
+            if (typeof window !== 'undefined' && 'Notification' in window && Notification.permission === 'granted') {
+              try {
+                new Notification('X Buddy — Print Ready! 🎉', {
+                  body: `Order ${orderId}: Your document is printed! Collect at the Xerox counter.`,
+                  icon: '/favicon.ico',
+                })
+              } catch {}
+            }
           }
         }
       } catch {
@@ -256,6 +265,9 @@ export default function PrintStatus({ fileInfo = {}, settings = {}, orderId, onR
           </motion.div>
         )}
       </div>
+
+      {/* ── THE LITTLE X BUDDY COURIER: FUN BROWSER PERMISSION GUIDE ── */}
+      <PermissionCourier orderId={orderId} />
 
       {/* Explicit server offline warning: ONLY shown if backend confirmed it */}
       <AnimatePresence>
