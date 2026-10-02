@@ -101,11 +101,35 @@ export async function getOrderStatus(orderId) {
 }
 
 export async function fetchAdminOrders() {
-  return await localGet('/admin/orders') ?? await gasGet({ action: 'listOrders' })
+  // Try local print agent first if running
+  try {
+    const local = await localGet('/admin/orders')
+    if (local?.success && Array.isArray(local.orders) && local.orders.length > 0) return local
+  } catch {}
+
+  // Try tunnel URL if available
+  try {
+    const tunnelUrl = await getTunnelUrl()
+    if (tunnelUrl) {
+      const res = await fetch(`${tunnelUrl}/admin/orders`, { signal: AbortSignal.timeout(4000) })
+      if (res.ok) {
+        const data = await res.json()
+        if (data?.success && Array.isArray(data.orders) && data.orders.length > 0) return data
+      }
+    }
+  } catch {}
+
+  // Live fallback to Google Apps Script
+  const gas = await gasGet({ action: 'listOrders' })
+  if (gas?.success && Array.isArray(gas.orders)) return gas
+
+  return { success: true, orders: [] }
 }
 
 export async function fetchAdminStats() {
-  return await localGet('/admin/stats') ?? await gasGet({ action: 'getDashboard' })
+  const local = await localGet('/admin/stats')
+  if (local?.success) return local
+  return null
 }
 
 export async function fetchBoothStatus() {

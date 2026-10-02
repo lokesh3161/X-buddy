@@ -45,19 +45,12 @@ const STATUS_BADGES = {
   'Failed':                'bg-rose-500/15 text-rose-300 border border-rose-500/30',
 }
 
-const INITIAL_ORDERS = [
-  { id: 'XB-1082', studentName: 'Rahul Verma', phone: '9876543210', fileName: 'Resume_Engineering.pdf', pages: 2, copies: 3, printType: 'Color', printSide: 'Single', customPages: '', amount: 33, paymentStatus: 'Paid', status: 'Ready for Collection', time: '09:18 AM', date: '2026-08-29', pdfUrl: '' },
-  { id: 'XB-1083', studentName: 'Sneha Patel', phone: '9845012345', fileName: 'Leave_Application.pdf', pages: 1, copies: 1, printType: 'B&W', printSide: 'Single', customPages: '', amount: 3, paymentStatus: 'Paid', status: 'Printing', time: '09:24 AM', date: '2026-08-29', pdfUrl: '' },
-  { id: 'XB-1084', studentName: 'Arjun Reddy', phone: '9123456789', fileName: 'Lab_Report_Final.pdf', pages: 18, copies: 1, printType: 'B&W', printSide: 'Double', customPages: '', amount: 20, paymentStatus: 'Paid', status: 'Accepted', time: '09:26 AM', date: '2026-08-29', pdfUrl: '' },
-  { id: 'XB-1085', studentName: 'Pooja Sharma', phone: '9765432109', fileName: 'Project_Documentation.pdf', pages: 45, copies: 2, printType: 'B&W', printSide: 'Double', customPages: '1-10, 20-25', amount: 35, paymentStatus: 'Paid', status: 'Pending', time: '09:32 AM', date: '2026-08-29', pdfUrl: '' },
-  { id: 'XB-1086', studentName: 'Vikas Gupta', phone: '9988776655', fileName: 'Research_Paper.pdf', pages: 12, copies: 1, printType: 'Color', printSide: 'Single', customPages: '', amount: 63, paymentStatus: 'Paid', status: 'Collected', time: '09:45 AM', date: '2026-08-29', pdfUrl: '' },
-]
-
 const ADMIN_PASSWORD = import.meta.env.VITE_ADMIN_PASSWORD || 'xbuddy@4921'
 const formatCurrency = value => `₹${Number(value || 0).toLocaleString()}`
 
 export default function AdminDashboard() {
-  const [orders, setOrders] = useState(INITIAL_ORDERS)
+  const [orders, setOrders] = useState([])
+  const [loading, setLoading] = useState(true)
   const [searchQuery, setSearchQuery] = useState('')
   const [statusFilter, setStatusFilter] = useState('ALL')
   const [selectedOrder, setSelectedOrder] = useState(null)
@@ -89,42 +82,73 @@ export default function AdminDashboard() {
     setAuthError('Incorrect password. Please try again.')
   }
 
-  // Load real orders from backend
+  // Load real orders from backend & Google Sheets
   useEffect(() => {
     if (!isAuthorized) return
     let isMounted = true
 
     async function loadAdminData() {
       try {
-        const [ordersRes] = await Promise.all([
-          fetchAdminOrders(),
-        ])
+        const ordersRes = await fetchAdminOrders()
 
         if (!isMounted) return
 
-        if (ordersRes?.success && Array.isArray(ordersRes.orders) && ordersRes.orders.length > 0) {
+        if (ordersRes?.success && Array.isArray(ordersRes.orders)) {
           setRealConnected(true)
-          const formatted = ordersRes.orders.map(o => ({
-            id: o.id || o.orderId,
-            studentName: o.name || 'Student',
-            phone: o.name?.match(/\d{10}/) ? o.name : (o.phone || ''),
-            fileName: o.fileName || 'Document.pdf',
-            pages: Number(o.pages || o.totalPages || 1),
-            copies: Number(o.copies || 1),
-            printType: o.printType || (o.colorMode === 'color' ? 'Color' : 'B&W'),
-            printSide: o.printSide || 'Single',
-            customPages: o.customPages || '',
-            amount: Number(o.amount || 0),
-            paymentStatus: o.paymentStatus || 'Paid',
-            status: o.status || o.printStatus || 'Accepted',
-            time: o.time || o.timestamp || new Date().toLocaleTimeString(),
-            date: o.date || new Date().toISOString().split('T')[0],
-            pdfUrl: o.pdfUrl || '',
-          }))
-          setOrders(formatted)
+          const formatted = ordersRes.orders.map(o => {
+            const nameStr = o.name != null ? String(o.name).trim() : ''
+            const isPhone = /^\d{10}$/.test(nameStr)
+            const phone = isPhone ? nameStr : (o.phone ? String(o.phone).trim() : '')
+            const studentName = !isPhone && nameStr ? nameStr : (o.studentName || 'Student')
+
+            let dateStr = ''
+            let timeStr = ''
+            if (o.timestamp) {
+              try {
+                const d = new Date(o.timestamp)
+                if (!isNaN(d.getTime())) {
+                  dateStr = d.toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' })
+                  timeStr = d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+                } else {
+                  dateStr = String(o.timestamp).split(' ')[0]
+                  timeStr = String(o.timestamp)
+                }
+              } catch {
+                dateStr = String(o.timestamp)
+              }
+            } else if (o.time) {
+              timeStr = o.time
+              dateStr = o.date || ''
+            }
+
+            return {
+              id: o.id || o.orderId,
+              studentName,
+              phone,
+              fileName: o.fileName || 'Document.pdf',
+              pages: Number(o.pages || o.totalPages || 1),
+              copies: Number(o.copies || 1),
+              printType: o.printType || (o.colorMode === 'color' ? 'Color' : 'B&W'),
+              printSide: o.printSide || 'Single',
+              customPages: o.customPages || '',
+              amount: Number(o.amount || 0),
+              paymentStatus: o.paymentStatus || 'Paid',
+              status: o.status || o.printStatus || 'Accepted',
+              time: timeStr || 'Just now',
+              date: dateStr || new Date().toISOString().split('T')[0],
+              pdfUrl: o.pdfUrl || '',
+              transactionId: o.transactionId ? String(o.transactionId) : '',
+              releaseStatus: o.releaseStatus || '',
+            }
+          })
+
+          // Latest orders first
+          setOrders(formatted.reverse())
         }
-      } catch {
-        // Fallback gracefully
+      } catch (err) {
+        console.error('Failed to load real admin orders:', err)
+      } finally {
+        if (isMounted) setLoading(false)
       }
     }
 
@@ -265,7 +289,7 @@ export default function AdminDashboard() {
           <div className="flex items-center gap-3">
             <div className="inline-flex items-center gap-2 px-3 py-1.5 rounded-xl bg-slate-900 border border-white/10 text-xs">
               <span className={`w-2 h-2 rounded-full ${realConnected ? 'bg-emerald-400 animate-pulse' : 'bg-amber-400'}`} />
-              <span className="text-slate-300">{realConnected ? 'Live Backend Feed' : 'Local / Demo Mode'}</span>
+              <span className="text-slate-300 font-semibold">{realConnected ? `Live Station Feed (${orders.length} Real Orders)` : 'Connecting...'}</span>
             </div>
             <a
               href="/"
@@ -361,7 +385,15 @@ export default function AdminDashboard() {
                 </tr>
               </thead>
               <tbody className="divide-y divide-white/5 text-xs text-slate-200">
-                {filteredOrders.length === 0 ? (
+                {loading && orders.length === 0 ? (
+                  <tr>
+                    <td colSpan={10} className="py-16 text-center text-slate-400">
+                      <div className="w-8 h-8 border-3 border-orange-500/30 border-t-orange-500 rounded-full animate-spin mx-auto mb-3" />
+                      <p className="font-semibold text-slate-300">Fetching live campus print orders...</p>
+                      <p className="text-[11px] text-slate-500 mt-1">Connecting to Xerox print agent &amp; Google Sheets</p>
+                    </td>
+                  </tr>
+                ) : filteredOrders.length === 0 ? (
                   <tr>
                     <td colSpan={10} className="py-12 text-center text-slate-500">
                       No matching orders found.
