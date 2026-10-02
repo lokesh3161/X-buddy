@@ -75,23 +75,28 @@ export async function readZipEntryText(buffer, targetRegex) {
       // Look for ZIP local file header signature 0x04034b50
       if (view.getUint32(offset, true) === 0x04034b50) {
         const compressionMethod = view.getUint16(offset + 8, true)
-        const compressedSize = view.getUint32(offset + 18, true)
+        let compressedSize = view.getUint32(offset + 18, true)
         const fileNameLength = view.getUint16(offset + 26, true)
         const extraFieldLength = view.getUint16(offset + 28, true)
 
         const fileNameBytes = bytes.subarray(offset + 30, offset + 30 + fileNameLength)
         const entryName = new TextDecoder('utf-8').decode(fileNameBytes)
-
         const dataOffset = offset + 30 + fileNameLength + extraFieldLength
 
         if (targetRegex.test(entryName)) {
-          // If compressed size is 0 in local header (data descriptor used), search next header
-          let actualCompressedSize = compressedSize
-          if (actualCompressedSize === 0) {
-            actualCompressedSize = Math.min(1024 * 1024, len - dataOffset)
+          // If compressed size is 0 (data descriptor flag used), scan for next header to find boundaries
+          if (compressedSize === 0) {
+            for (let next = dataOffset; next < len - 4; next++) {
+              const sig = view.getUint32(next, true)
+              if (sig === 0x04034b50 || sig === 0x02014b50) {
+                compressedSize = next - dataOffset
+                break
+              }
+            }
+            if (compressedSize === 0) compressedSize = len - dataOffset
           }
 
-          const compressedData = bytes.subarray(dataOffset, dataOffset + actualCompressedSize)
+          const compressedData = bytes.subarray(dataOffset, dataOffset + compressedSize)
 
           if (compressionMethod === 0) {
             // Uncompressed
@@ -342,48 +347,136 @@ async function processHtml(file) {
   })
 }
 
+// ─── Binary DOC (Word 97-2003 OLE) Page Counter ───────────────────────────────
+
+export function countDocPagesFromBinary(buffer) {
+  try {
+    const bytes = new Uint8Array(buffer)
+    const len = bytes.length
+    if (len < 512) return 1
+
+    // 1. Scan for Property 0x000E (PIDDSI_PAGECOUNT) in OLE property streams
+    for (let i = 0; i < len - 10; i += 2) {
+      if (bytes[i] === 0x0E && bytes[i + 1] === 0x00 && bytes[i + 2] === 0x00 && bytes[i + 3] === 0x00) {
+        if (bytes[i + 4] === 0x03 && bytes[i + 5] === 0x00) {
+          const val = bytes[i + 6] | (bytes[i + 7] << 8) | (bytes[i + 8] << 16)
+          if (val > 1 && val < 5000) {
+            return val
+          }
+        }
+      }
+    }
+
+    // 2. Scan printable characters & words in WordDocument stream
+    let printableChars = 0
+    let wordCount = 0
+    let inWord = false
+
+    for (let i = 0; i < len; i++) {
+      const b = bytes[i]
+      if ((b >= 32 && b <= 126) || b === 10 || b === 13 || b === 9) {
+        printableChars++
+        if ((b >= 65 && b <= 90) || (b >= 97 && b <= 122) || (b >= 48 && b <= 57)) {
+          if (!inWord) {
+            wordCount++
+            inWord = true
+          }
+        } else {
+          inWord = false
+        }
+      } else {
+        inWord = false
+      }
+    }
+
+    if (wordCount > 100 || printableChars > 500) {
+      const estByWords = Math.ceil(wordCount / 380)
+      const estByChars = Math.ceil(printableChars / 2200)
+      return Math.max(1, Math.max(estByWords, estByChars))
+    }
+  } catch (err) {
+    console.warn('countDocPagesFromBinary error:', err)
+  }
+  return 1
+}
+
 // ─── Office Processor (DOC/DOCX/PPT/PPTX/XLS/XLSX/RTF) ───────────────────────
 
 export async function countOfficeDocumentPages(buffer, fileName = '') {
   try {
     const ext = fileName.split('.').pop().toLowerCase()
 
-    // ── DOCX / DOC ──
-    if (ext === 'docx' || ext === 'doc') {
-      // 1. Try reading decompressed docProps/app.xml
+    // ── DOCX ──
+    if (ext === 'docx') {
       const appXml = await readZipEntryText(buffer, /docProps\/app\.xml$/i)
-      if (appXml) {
-        const pageMatch = appXml.match(/<Pages>(\d+)<\/Pages>/i)
-        if (pageMatch && parseInt(pageMatch[1], 10) > 0) {
-          return parseInt(pageMatch[1], 10)
-        }
-      }
-
-      // 2. Try reading decompressed word/document.xml to count page breaks
       const docXml = await readZipEntryText(buffer, /word\/document\.xml$/i)
-      if (docXml) {
-        const renderedBreaks = docXml.match(/w:lastRenderedPageBreak/gi)
-        const hardBreaks = docXml.match(/w:type="page"/gi)
-        const brPage = docXml.match(/<w:br[^>]*?w:type="page"/gi)
-        const totalBreaks = (renderedBreaks ? renderedBreaks.length : 0) + 
-                            (hardBreaks ? hardBreaks.length : 0) +
-                            (brPage ? brPage.length : 0)
-        if (totalBreaks > 0) return totalBreaks + 1
 
-        // Fallback: estimate from word / character count in document
-        if (appXml) {
-          const wordsMatch = appXml.match(/<Words>(\d+)<\/Words>/i)
-          if (wordsMatch && parseInt(wordsMatch[1], 10) > 0) {
-            const words = parseInt(wordsMatch[1], 10)
-            return Math.max(1, Math.ceil(words / 400))
-          }
+      let renderedBreaks = 0
+      let hardBreaks = 0
+      let brPage = 0
+      let wordCount = 0
+      let charCount = 0
+      let pCount = 0
+      let trCount = 0
+      let imgCount = 0
+
+      if (docXml) {
+        renderedBreaks = (docXml.match(/w:lastRenderedPageBreak/gi) || []).length
+        hardBreaks = (docXml.match(/w:type=['"\x22]page['"\x22]/gi) || []).length
+        brPage = (docXml.match(/<w:br[^>]*?w:type=['"\x22]page['"\x22]/gi) || []).length
+        pCount = (docXml.match(/<w:p\b/gi) || []).length
+        trCount = (docXml.match(/<w:tr\b/gi) || []).length
+        imgCount = (docXml.match(/<w:drawing|<v:shape|<w:pict/gi) || []).length
+
+        const tMatches = docXml.match(/<w:t\b[^>]*>(.*?)<\/w:t>/gi) || []
+        let fullText = ''
+        for (const t of tMatches) {
+          fullText += t.replace(/<[^>]+>/g, '') + ' '
         }
+        wordCount = fullText.trim().split(/\s+/).filter(Boolean).length
+        charCount = fullText.length
       }
+
+      let declaredPages = 0
+      let declaredWords = 0
+      if (appXml) {
+        const pMatch = appXml.match(/<Pages>(\d+)<\/Pages>/i)
+        if (pMatch) declaredPages = parseInt(pMatch[1], 10)
+        const wMatch = appXml.match(/<Words>(\d+)<\/Words>/i)
+        if (wMatch) declaredWords = parseInt(wMatch[1], 10)
+      }
+
+      // If Word saved actual rendered breaks during layout, use them directly
+      if (renderedBreaks > 0) {
+        return renderedBreaks + 1
+      }
+
+      // Calculate realistic A4 layout page count
+      const effectiveHardBreaks = Math.max(hardBreaks, brPage)
+      const pageByWords = wordCount > 0 ? (wordCount / 380) : 0
+      const pageByChars = charCount > 0 ? (charCount / 2200) : 0
+      const pageByTables = trCount > 0 ? (trCount / 20) : 0
+      const pageByImgs = imgCount * 0.35
+      const textVolume = Math.max(pageByWords, pageByChars)
+
+      const estimated = Math.ceil(textVolume + pageByTables + pageByImgs + (effectiveHardBreaks * 0.5))
+      const contentPages = Math.max(1, estimated)
+
+      // Only trust appXml declaredPages if declaredPages > 1 AND declaredWords > 0 (not unpaginated default 1)
+      if (declaredPages > 1 && declaredWords > 0 && Math.abs(declaredPages - contentPages) <= 3) {
+        return declaredPages
+      }
+
+      return contentPages
+    }
+
+    // ── Old DOC (Word 97-2003 binary format) ──
+    if (ext === 'doc') {
+      return countDocPagesFromBinary(buffer)
     }
 
     // ── PPTX / PPT ──
     if (ext === 'pptx' || ext === 'ppt') {
-      // 1. Check docProps/app.xml <Slides>N</Slides>
       const appXml = await readZipEntryText(buffer, /docProps\/app\.xml$/i)
       if (appXml) {
         const slideMatch = appXml.match(/<Slides>(\d+)<\/Slides>/i)
@@ -392,7 +485,6 @@ export async function countOfficeDocumentPages(buffer, fileName = '') {
         }
       }
 
-      // 2. Scan ZIP headers for all unique ppt/slides/slideN.xml
       const bytes = new Uint8Array(buffer)
       const text = new TextDecoder('latin1').decode(bytes)
       const slideMatches = text.match(/ppt\/slides\/slide(\d+)\.xml/gi)
@@ -412,6 +504,16 @@ export async function countOfficeDocumentPages(buffer, fileName = '') {
         if (uniqueSheets.size > 0) return uniqueSheets.size
       }
     }
+
+    // ── RTF ──
+    if (ext === 'rtf') {
+      const text = new TextDecoder('latin1').decode(new Uint8Array(buffer))
+      const pageBreaks = (text.match(/\\page\b/g) || []).length
+      const cleanText = text.replace(/\\[a-z0-9\-]+ ?/gi, ' ').replace(/[{}]/g, ' ')
+      const words = cleanText.trim().split(/\s+/).filter(Boolean).length
+      const estByWords = Math.ceil(words / 380)
+      return Math.max(1, pageBreaks + 1, estByWords)
+    }
   } catch (e) {
     console.warn('countOfficeDocumentPages error:', e)
   }
@@ -429,41 +531,124 @@ async function estimateOfficePages(file) {
 }
 
 async function processOffice(file, typeInfo) {
-  const estimatedPages = await estimateOfficePages(file)
+  const buffer = await file.arrayBuffer()
+  const estimatedPages = await countOfficeDocumentPages(buffer, file.name)
+  const ext = file.name.split('.').pop().toLowerCase()
+
   const doc = new jsPDF({ unit: 'mm', format: 'a4' })
   const pageW = doc.internal.pageSize.getWidth()
+  const pageH = doc.internal.pageSize.getHeight()
+  const margin = 15
+  const lineH = 5.5
+  const maxW = pageW - margin * 2
+  const bottomLimit = pageH - margin - 8
 
-  doc.setFillColor(255, 248, 242)
-  doc.rect(0, 0, pageW, 297, 'F')
+  let renderedPdfPages = 1
 
-  doc.setFont('helvetica', 'bold')
-  doc.setFontSize(22)
-  doc.setTextColor(247, 140, 37)
-  doc.text('X Buddy', pageW / 2, 50, { align: 'center' })
+  // If DOCX, extract non-empty paragraphs and render real multi-page text
+  if (ext === 'docx') {
+    try {
+      const docXml = await readZipEntryText(buffer, /word\/document\.xml$/i)
+      if (docXml) {
+        const paragraphs = []
+        const pRegex = /<w:p\b[\s\S]*?<\/w:p>/gi
+        let match
+        while ((match = pRegex.exec(docXml)) !== null) {
+          const pXml = match[0]
+          const tMatches = pXml.match(/<w:t\b[^>]*>(.*?)<\/w:t>/gi)
+          if (tMatches) {
+            const text = tMatches.map(t => t.replace(/<[^>]+>/g, '')).join('')
+            if (text.trim()) paragraphs.push(text.trim())
+          }
+        }
 
-  doc.setFont('helvetica', 'normal')
-  doc.setFontSize(13)
-  doc.setTextColor(60, 60, 60)
-  doc.text(`File: ${file.name}`, pageW / 2, 70, { align: 'center' })
-  doc.text(`Type: ${typeInfo.label} Document`, pageW / 2, 82, { align: 'center' })
-  doc.text(`Size: ${formatBytes(file.size)}`, pageW / 2, 94, { align: 'center' })
+        if (paragraphs.length > 0) {
+          doc.setFont('helvetica', 'normal')
+          doc.setFontSize(10)
+          doc.setTextColor(30, 30, 30)
 
-  doc.setFontSize(11)
-  doc.setTextColor(120, 120, 120)
-  const note = [
-    'This document will be sent to the print agent.',
-    'Office format conversion requires the X Buddy',
-    'desktop agent to be running on the kiosk PC.',
-    '',
-    'The agent will convert and print this file',
-    'automatically using LibreOffice.',
-  ]
-  note.forEach((line, i) => doc.text(line, pageW / 2, 120 + i * 9, { align: 'center' }))
+          let y = margin
+          for (let pIdx = 0; pIdx < paragraphs.length; pIdx++) {
+            const p = paragraphs[pIdx]
+            const isHeading = p.length < 80 && (pIdx === 0 || /^[A-Z0-9\s:–—•]+$/.test(p) || p.endsWith(':'))
+            if (isHeading) {
+              doc.setFont('helvetica', 'bold')
+              doc.setFontSize(11)
+            } else {
+              doc.setFont('helvetica', 'normal')
+              doc.setFontSize(10)
+            }
+
+            const wrapped = doc.splitTextToSize(p, maxW)
+            for (const line of wrapped) {
+              if (y + lineH > bottomLimit) {
+                // Add page number footer before adding new page
+                doc.setFont('helvetica', 'normal')
+                doc.setFontSize(8)
+                doc.setTextColor(150, 150, 150)
+                doc.text(`Page ${renderedPdfPages}`, pageW / 2, pageH - 10, { align: 'center' })
+
+                doc.addPage()
+                renderedPdfPages++
+                y = margin
+                doc.setTextColor(30, 30, 30)
+                doc.setFontSize(isHeading ? 11 : 10)
+                if (isHeading) doc.setFont('helvetica', 'bold')
+              }
+              doc.text(line, margin, y)
+              y += lineH
+            }
+            y += 2.5 // Paragraph spacing
+          }
+
+          // Footer for last page
+          doc.setFont('helvetica', 'normal')
+          doc.setFontSize(8)
+          doc.setTextColor(150, 150, 150)
+          doc.text(`Page ${renderedPdfPages}`, pageW / 2, pageH - 10, { align: 'center' })
+        }
+      }
+    } catch (e) {
+      console.warn('DOCX text rendering error:', e)
+    }
+  }
+
+  // If not rendered or DOC/PPT/XLS, create placeholder pages matching estimatedPages
+  if (renderedPdfPages === 1 && estimatedPages > 1) {
+    for (let p = 1; p <= estimatedPages; p++) {
+      if (p > 1) doc.addPage()
+      doc.setFillColor(255, 248, 242)
+      doc.rect(0, 0, pageW, 297, 'F')
+      doc.setFont('helvetica', 'bold')
+      doc.setFontSize(20)
+      doc.setTextColor(247, 140, 37)
+      doc.text('X Buddy Print Station', pageW / 2, 45, { align: 'center' })
+
+      doc.setFont('helvetica', 'normal')
+      doc.setFontSize(12)
+      doc.setTextColor(60, 60, 60)
+      doc.text(`File: ${file.name}`, pageW / 2, 65, { align: 'center' })
+      doc.text(`Format: ${typeInfo.label} Document · Sheet/Page ${p} of ${estimatedPages}`, pageW / 2, 75, { align: 'center' })
+      doc.text(`Total Document Pages: ${estimatedPages}`, pageW / 2, 85, { align: 'center' })
+
+      doc.setFontSize(10)
+      doc.setTextColor(140, 140, 140)
+      doc.text(`Converted for campus print queue · Size: ${formatBytes(file.size)}`, pageW / 2, 110, { align: 'center' })
+    }
+  }
+
+  const finalPages = Math.max(1, Math.max(estimatedPages, renderedPdfPages))
+  const pdfBlob = doc.output('blob')
+  let thumbnail = null
+  try {
+    const ab = await pdfBlob.arrayBuffer()
+    thumbnail = await pdfThumbnail(ab)
+  } catch {}
 
   return {
-    pdfBlob: doc.output('blob'),
-    totalPages: estimatedPages,
-    thumbnail: null,
+    pdfBlob,
+    totalPages: finalPages,
+    thumbnail,
     requiresAgent: true,
     originalFile: file,
   }
