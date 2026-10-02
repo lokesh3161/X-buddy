@@ -2,145 +2,425 @@ import { useEffect, useState, useRef } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { getOrderStatus } from '../utils/api'
 
-const OFFLINE_TIMEOUT_MS = 30000
-const POLL_INTERVAL_MS   = 5000
+const POLL_INTERVAL_MS = 4000
 
-const STAGES = [
-  { id: 'paid',     label: 'Order Confirmed',    icon: '✅', desc: 'Payment verified & order received by shop' },
-  { id: 'queued',   label: 'In Print Queue',     icon: '📋', desc: 'Queued at the campus Xerox shop'           },
-  { id: 'printing', label: 'Printing',           icon: '🖨️', desc: 'Staff is printing your documents...'       },
-  { id: 'done',     label: 'Ready / Collected',  icon: '🎉', desc: 'Ready for pickup at the Xerox shop!'       },
+// Complete customer flow steps matching the Xerox shop workflow
+const FLOW_STEPS = [
+  { id: 'confirmed', label: 'Order Confirmed',        icon: '✅', desc: 'Order received successfully by Xerox shop' },
+  { id: 'show_id',   label: 'Show ID to Shopkeeper',  icon: '🏷️', desc: 'Present Order ID at the Xerox counter' },
+  { id: 'waiting',   label: 'Waiting for Shopkeeper', icon: '⏳', desc: 'Shopkeeper verifies order & payment' },
+  { id: 'verified',  label: 'Payment Verified',       icon: '💳', desc: 'Payment approved by shopkeeper' },
+  { id: 'sending',   label: 'Sending to Printer',     icon: '📡', desc: 'Document sent to Xerox print station' },
+  { id: 'printing',  label: 'Printing',               icon: '🖨️', desc: 'Xerox machine printing your pages' },
+  { id: 'completed', label: 'Completed',              icon: '🎉', desc: 'Collect printed documents at counter!' },
 ]
 
-function statusToStage(status) {
-  switch (status) {
-    case 'Printing': return 2
-    case 'Ready':
-    case 'Ready for Collection':
-    case 'Printed':
-    case 'Collected': return 3
-    case 'Failed':   return 3
-    default:         return 1
+function statusToStep(status) {
+  if (!status) return 2 // Default to 'Waiting for Shopkeeper'
+  const normalized = status.trim().toLowerCase()
+
+  if (normalized === 'failed') return -1
+  if (['printed', 'ready', 'ready for collection', 'collected', 'completed', 'done'].includes(normalized)) {
+    return 6 // Completed
   }
+  if (['printing'].includes(normalized)) {
+    return 5 // Printing
+  }
+  if (['sending', 'sending to printer', 'processing', 'queued'].includes(normalized)) {
+    return 4 // Sending to Printer
+  }
+  if (['verified', 'payment verified', 'approved'].includes(normalized)) {
+    return 3 // Payment Verified
+  }
+  // Default waiting state (waiting for shopkeeper to look up and verify)
+  return 2
 }
 
-export default function PrintStatus({ fileInfo, settings, orderId, onReset, onViewMyOrders }) {
-  // Guard: this screen must never render without a real confirmed orderId
+export default function PrintStatus({ fileInfo = {}, settings = {}, orderId, onReset, onViewMyOrders }) {
   if (!orderId) return null
-  const [stageIndex,    setStageIndex]    = useState(0)
-  const [progress,      setProgress]      = useState(0)
+
+  const [currentStep, setCurrentStep] = useState(2) // 2 = Waiting for Shopkeeper
+  const [progress, setProgress] = useState(33)
   const [serverOffline, setServerOffline] = useState(false)
-  const [printFailed,   setPrintFailed]   = useState(false)
-  const [lastChecked,   setLastChecked]   = useState(null)
+  const [printFailed, setPrintFailed] = useState(false)
+  const [lastChecked, setLastChecked] = useState(null)
   const [collectionChoice, setCollectionChoice] = useState('now')
-  const pollRef    = useRef(null)
-  const offlineRef = useRef(null)
-  const statusRef  = useRef('Waiting')
+  const [copied, setCopied] = useState(false)
+  const pollRef = useRef(null)
+
+  const handleCopyId = () => {
+    if (!orderId) return
+    navigator.clipboard?.writeText(orderId)
+    setCopied(true)
+    setTimeout(() => setCopied(false), 2000)
+  }
 
   useEffect(() => {
     if (!orderId) return
-    offlineRef.current = setTimeout(() => {
-      if (statusRef.current === 'Waiting') setServerOffline(true)
-    }, OFFLINE_TIMEOUT_MS)
 
     async function checkStatus() {
       try {
         const data = await getOrderStatus(orderId)
-        if (data && data.success && data.printStatus) {
-          const status = data.printStatus
-          statusRef.current = status
-          setLastChecked(new Date().toLocaleTimeString())
-          setStageIndex(statusToStage(status))
-          if (status !== 'Waiting') { setServerOffline(false); clearTimeout(offlineRef.current) }
-          if (status === 'Failed')  { setPrintFailed(true); clearInterval(pollRef.current); return }
-          if (status === 'Printed' || status === 'Collected') { clearInterval(pollRef.current) }
+        if (data && data.success) {
+          const status = data.printStatus || 'Waiting'
+          setLastChecked(new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' }))
+          
+          const step = statusToStep(status)
+          if (step === -1) {
+            setPrintFailed(true)
+            clearInterval(pollRef.current)
+            return
+          }
+
+          setCurrentStep(step)
+
+          // Only flag offline if backend explicitly flags it
+          if (data.serverOffline === true || status === 'Server Offline') {
+            setServerOffline(true)
+          } else {
+            setServerOffline(false)
+          }
+
+          if (step >= 6) {
+            clearInterval(pollRef.current)
+          }
         }
-      } catch {}
+      } catch {
+        // Network polling error: do not display scary print server offline banners during normal polling
+      }
     }
 
     checkStatus()
     pollRef.current = setInterval(checkStatus, POLL_INTERVAL_MS)
-    return () => { clearInterval(pollRef.current); clearTimeout(offlineRef.current) }
+    return () => clearInterval(pollRef.current)
   }, [orderId])
 
   useEffect(() => {
-    const target = (stageIndex / (STAGES.length - 1)) * 100
-    const step   = (target - progress) / 20
-    let current  = progress
+    const target = Math.min(100, Math.round(((currentStep + 1) / FLOW_STEPS.length) * 100))
+    const step = (target - progress) / 15
+    let current = progress
     const interval = setInterval(() => {
       current += step
-      if (current >= target) { setProgress(target); clearInterval(interval) }
-      else setProgress(current)
-    }, 30)
+      if (Math.abs(current - target) < 1 || current >= target) {
+        setProgress(target)
+        clearInterval(interval)
+      } else {
+        setProgress(current)
+      }
+    }, 25)
     return () => clearInterval(interval)
-  }, [stageIndex])
+  }, [currentStep])
 
-  const isDone = stageIndex === STAGES.length - 1
+  const isDone = currentStep >= 6
 
   return (
-    <motion.section initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} className="max-w-2xl mx-auto px-4 py-8">
-      {/* Header */}
-      <div className="text-center mb-6">
-        <motion.div
-          initial={{ scale: 0 }} animate={{ scale: 1 }} transition={{ type: 'spring', damping: 15 }}
-          className="w-16 h-16 rounded-full bg-green-50 border border-green-200 flex items-center justify-center mx-auto mb-4"
-        >
-          <svg className="w-8 h-8 text-green-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
-          </svg>
-        </motion.div>
-        <h2 className="text-2xl font-bold text-[#222222]">✓ Order Confirmed</h2>
-        <div className="inline-flex items-center gap-2 mt-2 px-5 py-2 rounded-full bg-orange-50 border border-orange-200 shadow-xs">
-          <span className="text-gray-500 text-xs font-medium">Order ID:</span>
-          <span className="text-[#F78C25] font-mono text-base font-extrabold tracking-wider">{orderId}</span>
+    <motion.section initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} className="max-w-2xl mx-auto px-4 py-6">
+      
+      {/* ── STEP 1: ORDER CONFIRMED BADGE ── */}
+      <div className="text-center mb-4">
+        <div className="inline-flex items-center gap-2 px-4 py-1.5 rounded-full bg-emerald-50 border border-emerald-200 shadow-xs">
+          <span className="w-2.5 h-2.5 rounded-full bg-emerald-500 animate-pulse"></span>
+          <span className="text-emerald-800 text-xs font-bold uppercase tracking-wider">✓ Order Confirmed</span>
         </div>
-        <p className="text-sm font-semibold text-slate-700 mt-3">
-          Show this Order ID at the Xerox shop to collect your documents.
+        <div className="flex justify-center my-2">
+          <span className="text-orange-400 font-bold text-lg select-none">↓</span>
+        </div>
+      </div>
+
+      {/* ── STEP 2 & 3: PRIMARY INSTRUCTION CARD: PROMINENT ORDER ID ── */}
+      <div className="relative p-6 sm:p-8 bg-gradient-to-b from-[#FFFDFB] via-[#FFF9F3] to-[#FFF3E8] border-2 border-[#F78C25]/40 rounded-3xl text-center shadow-lg shadow-orange-500/10 mb-4 overflow-hidden">
+        {/* Decorative Top Accent */}
+        <div className="absolute top-0 left-0 right-0 h-1.5 bg-gradient-to-r from-[#F78C25] via-[#ffb347] to-[#F78C25]" />
+
+        <p className="text-xs sm:text-sm font-black tracking-widest text-[#F78C25] uppercase mb-1">
+          YOUR ORDER ID
+        </p>
+
+        {/* Dynamic Big Order ID with Copy Button */}
+        <div className="flex items-center justify-center gap-3 my-2">
+          <span className="font-mono text-4xl sm:text-6xl font-black text-[#1F2937] tracking-widest select-all">
+            {orderId}
+          </span>
+          <button
+            type="button"
+            onClick={handleCopyId}
+            className="p-2.5 sm:p-3 rounded-2xl bg-white border border-orange-200 text-gray-600 hover:text-[#F78C25] hover:border-[#F78C25] hover:bg-orange-50 transition-all shadow-xs active:scale-95 cursor-pointer"
+            title="Copy Order ID"
+          >
+            {copied ? (
+              <span className="text-emerald-600 text-xs font-bold flex items-center gap-1">
+                ✓ Copied
+              </span>
+            ) : (
+              <svg className="w-5 h-5 text-gray-500 hover:text-[#F78C25]" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z" />
+              </svg>
+            )}
+          </button>
+        </div>
+
+        {/* Flow indicator inside card */}
+        <div className="text-orange-400 font-bold text-sm my-1 select-none">↓</div>
+
+        {/* Primary Instruction */}
+        <h3 className="text-lg sm:text-2xl font-black text-[#222222] leading-snug">
+          Show this Order ID to the shopkeeper
+          <span className="block text-[#F78C25]">at the Xerox counter.</span>
+        </h3>
+        <p className="text-xs sm:text-sm font-medium text-slate-600 mt-2 max-w-md mx-auto">
+          The shopkeeper will use this ID to find your order and verify your payment.
         </p>
       </div>
 
-      {/* Collection Framing Card */}
-      <div className="mb-6 p-5 bg-[#FFF8F2] border border-orange-200 rounded-2xl text-center shadow-xs">
-        <p className="text-sm font-bold text-[#222222] mb-3">When would you like to collect your documents?</p>
-        <div className="flex gap-3 max-w-sm mx-auto mb-4">
+      <div className="flex justify-center my-2">
+        <span className="text-orange-400 font-bold text-lg select-none">↓</span>
+      </div>
+
+      {/* ── STEP 4: WAITING / ACTIVE STATUS BANNER ── */}
+      <div className="mb-6">
+        {currentStep <= 2 && (
+          <motion.div
+            initial={{ opacity: 0, scale: 0.98 }}
+            animate={{ opacity: 1, scale: 1 }}
+            className="p-5 rounded-2xl bg-amber-50/90 border border-amber-200/90 text-center shadow-xs"
+          >
+            <div className="inline-flex items-center justify-center gap-2 text-amber-900 font-extrabold text-base sm:text-lg mb-1.5">
+              <span className="text-xl animate-pulse">⏳</span> Waiting for Shopkeeper
+            </div>
+            <p className="text-xs sm:text-sm text-amber-800 leading-relaxed max-w-lg mx-auto">
+              Your order has been received successfully.
+              <span className="block font-semibold mt-0.5">Please keep this screen open while the shopkeeper verifies your order.</span>
+            </p>
+          </motion.div>
+        )}
+
+        {currentStep === 3 && (
+          <motion.div
+            initial={{ opacity: 0, scale: 0.98 }}
+            animate={{ opacity: 1, scale: 1 }}
+            className="p-5 rounded-2xl bg-emerald-50/90 border border-emerald-200 text-center shadow-xs"
+          >
+            <div className="inline-flex items-center justify-center gap-2 text-emerald-900 font-extrabold text-base sm:text-lg mb-1.5">
+              <span className="text-xl">💳</span> Payment Verified!
+            </div>
+            <p className="text-xs sm:text-sm text-emerald-800 leading-relaxed max-w-lg mx-auto">
+              Your payment has been verified by the shopkeeper.
+              <span className="block font-semibold mt-0.5">Preparing to send document to Xerox printer station...</span>
+            </p>
+          </motion.div>
+        )}
+
+        {currentStep === 4 && (
+          <motion.div
+            initial={{ opacity: 0, scale: 0.98 }}
+            animate={{ opacity: 1, scale: 1 }}
+            className="p-5 rounded-2xl bg-blue-50/90 border border-blue-200 text-center shadow-xs"
+          >
+            <div className="inline-flex items-center justify-center gap-2 text-blue-900 font-extrabold text-base sm:text-lg mb-1.5">
+              <span className="text-xl animate-spin">📡</span> Sending to Printer...
+            </div>
+            <p className="text-xs sm:text-sm text-blue-800 leading-relaxed max-w-lg mx-auto">
+              Transmitting your documents to the Xerox print station.
+            </p>
+          </motion.div>
+        )}
+
+        {currentStep === 5 && (
+          <motion.div
+            initial={{ opacity: 0, scale: 0.98 }}
+            animate={{ opacity: 1, scale: 1 }}
+            className="p-5 rounded-2xl bg-blue-50/90 border border-blue-200 text-center shadow-xs"
+          >
+            <div className="inline-flex items-center justify-center gap-2 text-blue-900 font-extrabold text-base sm:text-lg mb-1.5">
+              <span className="text-xl animate-pulse">🖨️</span> Printing Document...
+            </div>
+            <p className="text-xs sm:text-sm text-blue-800 leading-relaxed max-w-lg mx-auto">
+              Your document is currently printing on the Xerox machine.
+            </p>
+          </motion.div>
+        )}
+
+        {isDone && (
+          <motion.div
+            initial={{ opacity: 0, scale: 0.98 }}
+            animate={{ opacity: 1, scale: 1 }}
+            className="p-5 rounded-2xl bg-emerald-50/90 border border-emerald-200 text-center shadow-xs"
+          >
+            <div className="inline-flex items-center justify-center gap-2 text-emerald-900 font-extrabold text-lg sm:text-xl mb-1.5">
+              <span className="text-2xl">🎉</span> Printing Completed!
+            </div>
+            <p className="text-xs sm:text-sm text-emerald-800 leading-relaxed max-w-lg mx-auto">
+              Your document has been printed successfully.
+              <span className="block font-bold mt-0.5">Please collect your printout from the counter!</span>
+            </p>
+          </motion.div>
+        )}
+      </div>
+
+      {/* Explicit server offline warning: ONLY shown if backend confirmed it */}
+      <AnimatePresence>
+        {serverOffline && !isDone && (
+          <motion.div initial={{ opacity: 0, y: -10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }}
+            className="mb-6 p-4 rounded-2xl bg-amber-50 border border-amber-200 flex items-start gap-3">
+            <span className="text-xl">⚠️</span>
+            <div>
+              <p className="text-amber-800 font-bold text-sm">Print Station Notice</p>
+              <p className="text-amber-700 text-xs mt-0.5">The print station is reconnecting. Please show Order ID <span className="font-mono font-bold text-[#F78C25]">{orderId}</span> to the shopkeeper directly.</p>
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* Print Failed Banner */}
+      <AnimatePresence>
+        {printFailed && (
+          <motion.div initial={{ opacity: 0, y: -10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }}
+            className="mb-6 p-4 rounded-2xl bg-red-50 border border-red-200 flex items-start gap-3">
+            <span className="text-xl">⚠️</span>
+            <div>
+              <p className="text-red-600 font-bold text-sm">Print Issue Reported</p>
+              <p className="text-gray-600 text-xs mt-0.5">There was an issue at the printer. Please inform the shopkeeper with Order ID <span className="font-mono font-bold text-[#F78C25]">{orderId}</span>.</p>
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* Document Details & Visual Stepper Card */}
+      <div className="bg-white border border-orange-100 rounded-3xl p-6 mb-6 shadow-sm">
+        <div className="flex items-center gap-3 mb-6 pb-4 border-b border-orange-100">
+          <div className="w-11 h-11 rounded-2xl bg-orange-50 border border-orange-200 flex items-center justify-center text-xl flex-shrink-0">
+            📄
+          </div>
+          <div className="flex-1 min-w-0">
+            <p className="text-[#222222] font-bold truncate text-sm sm:text-base">{fileInfo?.name || 'Document'}</p>
+            <p className="text-gray-500 text-xs mt-0.5">
+              {fileInfo?.totalPages || 1} {fileInfo?.totalPages === 1 ? 'page' : 'pages'} · {settings?.colorMode === 'color' ? 'Color' : 'B&W'} · {settings?.sideMode === 'double' ? 'Double sided' : 'Single sided'} · {settings?.copies || 1} {settings?.copies > 1 ? 'copies' : 'copy'}
+            </p>
+          </div>
+        </div>
+
+        {/* Progress Bar */}
+        <div className="mb-6">
+          <div className="flex justify-between text-xs font-semibold text-gray-500 mb-2">
+            <span>Customer Order Flow</span>
+            <span className="text-[#F78C25] font-bold">{Math.round(progress)}%</span>
+          </div>
+          <div className="h-2.5 bg-orange-100/70 rounded-full overflow-hidden">
+            <motion.div
+              className="h-full rounded-full bg-gradient-to-r from-[#F78C25] to-[#ffb347]"
+              animate={{ width: `${progress}%` }}
+              transition={{ duration: 0.3 }}
+            />
+          </div>
+        </div>
+
+        {/* Visual Customer Flow Stages (Connected Pipeline) */}
+        <div className="space-y-1 relative">
+          {FLOW_STEPS.map((step, i) => {
+            const isCompleted = i < currentStep || isDone
+            const isActive = i === currentStep && !isDone
+            const isLast = i === FLOW_STEPS.length - 1
+
+            return (
+              <div key={step.id} className="relative">
+                <motion.div
+                  initial={{ opacity: 0.4 }}
+                  animate={{ opacity: isActive || isCompleted ? 1 : 0.45 }}
+                  className={`flex items-center gap-3.5 p-3 rounded-2xl transition-all ${
+                    isActive ? 'bg-orange-50/90 border border-orange-200 shadow-xs' : 'border border-transparent'
+                  }`}
+                >
+                  <div className={`w-9 h-9 rounded-xl flex items-center justify-center text-sm flex-shrink-0 font-bold transition-all z-10 ${
+                    isCompleted ? 'bg-emerald-500 text-white shadow-xs' :
+                    isActive   ? 'bg-[#F78C25] text-white shadow-sm ring-4 ring-orange-100' :
+                    'bg-gray-100 text-gray-400 border border-gray-200'
+                  }`}>
+                    {isCompleted ? '✓' : step.icon}
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <p className={`text-sm font-bold flex items-center gap-2 ${
+                      isCompleted ? 'text-emerald-700' : isActive ? 'text-[#222222]' : 'text-gray-400'
+                    }`}>
+                      {step.label}
+                      {step.id === 'show_id' && (
+                        <span className="font-mono text-xs px-2 py-0.5 rounded bg-orange-100 text-orange-800 font-bold">
+                          {orderId}
+                        </span>
+                      )}
+                      {isActive && !isDone && (
+                        <span className="inline-flex gap-1 items-center">
+                          {[0, 1, 2].map(d => (
+                            <motion.span
+                              key={d}
+                              animate={{ opacity: [0.3, 1, 0.3] }}
+                              transition={{ duration: 1, repeat: Infinity, delay: d * 0.2 }}
+                              className="w-1.5 h-1.5 rounded-full bg-[#F78C25] inline-block"
+                            />
+                          ))}
+                        </span>
+                      )}
+                    </p>
+                    <p className={`text-xs mt-0.5 truncate ${isActive ? 'text-gray-600' : 'text-gray-400'}`}>
+                      {step.desc}
+                    </p>
+                  </div>
+                </motion.div>
+
+                {/* Vertical Connector Line */}
+                {!isLast && (
+                  <div className="ml-7 pl-[1px] my-0.5">
+                    <div className={`w-0.5 h-3 ${isCompleted ? 'bg-emerald-400' : 'bg-gray-200'}`} />
+                  </div>
+                )}
+              </div>
+            )
+          })}
+        </div>
+
+        {lastChecked && (
+          <p className="text-gray-400 text-[11px] mt-4 text-right">
+            Status updated: {lastChecked}
+          </p>
+        )}
+      </div>
+
+      {/* Collection Preference Option */}
+      <div className="p-4 bg-white border border-orange-100 rounded-2xl text-center shadow-xs mb-6">
+        <p className="text-xs font-bold text-gray-700 mb-2">Need to leave or collect later?</p>
+        <div className="flex gap-2 max-w-xs mx-auto">
           <button
             type="button"
             onClick={() => setCollectionChoice('now')}
-            className={`flex-1 py-2.5 px-3 rounded-xl text-xs font-bold transition-all border ${
+            className={`flex-1 py-2 px-3 rounded-xl text-xs font-bold transition-all border cursor-pointer ${
               collectionChoice === 'now'
-                ? 'bg-[#F78C25] text-white border-[#F78C25] shadow-sm shadow-orange-500/20'
-                : 'bg-white text-gray-700 border-orange-200 hover:bg-orange-50'
+                ? 'bg-[#F78C25] text-white border-[#F78C25] shadow-xs'
+                : 'bg-white text-gray-700 border-gray-200 hover:bg-orange-50'
             }`}
           >
-            🏃 Collect Now
+            🏃 Collecting Now
           </button>
           <button
             type="button"
             onClick={() => setCollectionChoice('later')}
-            className={`flex-1 py-2.5 px-3 rounded-xl text-xs font-bold transition-all border ${
+            className={`flex-1 py-2 px-3 rounded-xl text-xs font-bold transition-all border cursor-pointer ${
               collectionChoice === 'later'
-                ? 'bg-[#F78C25] text-white border-[#F78C25] shadow-sm shadow-orange-500/20'
-                : 'bg-white text-gray-700 border-orange-200 hover:bg-orange-50'
+                ? 'bg-[#F78C25] text-white border-[#F78C25] shadow-xs'
+                : 'bg-white text-gray-700 border-gray-200 hover:bg-orange-50'
             }`}
           >
             ⏱️ Collect Later
           </button>
         </div>
 
-        {collectionChoice === 'now' ? (
-          <div className="bg-white/80 p-3.5 rounded-xl border border-orange-100 text-xs text-gray-600">
-            <span className="font-semibold text-[#F78C25]">Head to the campus Xerox shop now.</span>
-            <p className="mt-1 text-gray-500">The shop staff will look up Order ID <span className="font-mono font-bold text-gray-800">{orderId}</span> to hand over your printed documents.</p>
-          </div>
-        ) : (
-          <div className="bg-white/80 p-3.5 rounded-xl border border-orange-100 text-xs text-gray-600 space-y-2">
-            <span className="font-semibold text-emerald-600">✓ Saved in My Orders!</span>
-            <p className="text-gray-500">You can close this page. Show Order ID <span className="font-mono font-bold text-gray-800">{orderId}</span> at the Xerox shop whenever you visit.</p>
+        {collectionChoice === 'later' && (
+          <div className="mt-3 p-3 bg-orange-50 rounded-xl border border-orange-100 text-xs text-gray-600">
+            <span className="font-bold text-emerald-700">✓ Saved in My Orders!</span>
+            <p className="mt-0.5 text-gray-500">You can safely close this browser window. Just give Order ID <span className="font-mono font-bold text-[#F78C25]">{orderId}</span> to the shopkeeper when you arrive.</p>
             {onViewMyOrders && (
               <button
                 type="button"
                 onClick={onViewMyOrders}
-                className="mt-1 inline-flex items-center gap-1.5 px-3 py-1.5 bg-orange-100 hover:bg-orange-200 text-[#F78C25] font-bold rounded-lg transition-colors text-xs"
+                className="mt-2 inline-flex items-center gap-1 px-3 py-1.5 bg-[#F78C25] text-white font-bold rounded-lg text-xs hover:bg-[#e07010] transition-colors cursor-pointer"
               >
                 📋 View in My Orders →
               </button>
@@ -149,129 +429,14 @@ export default function PrintStatus({ fileInfo, settings, orderId, onReset, onVi
         )}
       </div>
 
-      {/* Shop instruction banner */}
-      <AnimatePresence>
-        {stageIndex < 2 && (
-          <motion.div initial={{ opacity: 0, y: -10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }}
-            className="mb-4 p-4 rounded-2xl bg-orange-50 border border-orange-200 flex items-start gap-3">
-            <span className="text-xl">🏪</span>
-            <div>
-              <p className="text-[#F78C25] font-semibold text-sm">Visit the Campus Xerox Shop</p>
-              <p className="text-gray-500 text-xs mt-1">Provide your Order ID to the staff at the counter to collect your prints.</p>
-              <p className="text-gray-400 text-xs mt-1">Order ID: <span className="font-mono text-[#F78C25] font-bold">{orderId}</span></p>
-            </div>
-          </motion.div>
-        )}
-      </AnimatePresence>
-
-      {/* Offline warning */}
-      <AnimatePresence>
-        {serverOffline && !isDone && (
-          <motion.div initial={{ opacity: 0, y: -10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }}
-            className="mb-4 p-4 rounded-2xl bg-red-50 border border-red-200 flex items-start gap-3">
-            <span className="text-xl">⚠️</span>
-            <div>
-              <p className="text-red-500 font-semibold text-sm">Could not connect to print server</p>
-              <p className="text-gray-500 text-xs mt-1">The print agent appears to be offline. Your order is saved and will print once the server is back online.</p>
-              <p className="text-gray-400 text-xs mt-1">Please inform the shopkeeper — Order ID: <span className="font-mono text-[#F78C25]">{orderId}</span></p>
-            </div>
-          </motion.div>
-        )}
-      </AnimatePresence>
-
-      {/* Print failed */}
-      <AnimatePresence>
-        {printFailed && (
-          <motion.div initial={{ opacity: 0, y: -10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }}
-            className="mb-4 p-4 rounded-2xl bg-amber-50 border border-amber-200 flex items-start gap-3">
-            <span className="text-xl">🖨️</span>
-            <div>
-              <p className="text-amber-600 font-semibold text-sm">Print job failed</p>
-              <p className="text-gray-500 text-xs mt-1">There was an issue with the printer. Please show your Order ID to the shopkeeper.</p>
-              <p className="text-gray-400 text-xs mt-1">Order ID: <span className="font-mono text-[#F78C25]">{orderId}</span></p>
-            </div>
-          </motion.div>
-        )}
-      </AnimatePresence>
-
-      {/* Print job card */}
-      <div className="bg-white border border-orange-100 rounded-2xl p-6 mb-6 shadow-sm">
-        <div className="flex items-center gap-3 mb-6 pb-4 border-b border-orange-100">
-          <div className="w-10 h-10 rounded-xl bg-orange-50 border border-orange-200 flex items-center justify-center">
-            <span className="text-lg">📄</span>
-          </div>
-          <div className="flex-1 min-w-0">
-            <p className="text-[#222222] font-medium truncate">{fileInfo.name}</p>
-            <p className="text-gray-400 text-xs">
-              {fileInfo.totalPages} pages · {settings.colorMode === 'color' ? 'Color' : 'B&W'} · {settings.sideMode === 'double' ? 'Double' : 'Single'} side · {settings.copies} {settings.copies > 1 ? 'copies' : 'copy'}
-            </p>
-          </div>
-        </div>
-
-        {/* Progress bar */}
-        <div className="mb-6">
-          <div className="flex justify-between text-xs text-gray-400 mb-2">
-            <span>Print Progress</span>
-            <span>{Math.round(progress)}%</span>
-          </div>
-          <div className="h-2 bg-orange-100 rounded-full overflow-hidden">
-            <motion.div
-              className={`h-full rounded-full bg-gradient-to-r ${serverOffline && !isDone ? 'from-red-400 to-red-300' : 'from-[#F78C25] to-[#ffb347]'}`}
-              animate={{ width: `${progress}%` }}
-              transition={{ duration: 0.3 }}
-            />
-          </div>
-        </div>
-
-        {/* Stages */}
-        <div className="space-y-3">
-          {STAGES.map((stage, i) => {
-            const isActive   = i === stageIndex
-            const isComplete = i < stageIndex
-            return (
-              <motion.div
-                key={stage.id}
-                initial={{ opacity: 0.4 }}
-                animate={{ opacity: isActive || isComplete ? 1 : 0.3 }}
-                className={`flex items-center gap-3 p-3 rounded-xl transition-all ${isActive ? 'bg-orange-50 border border-orange-200' : ''}`}
-              >
-                <div className={`w-8 h-8 rounded-full flex items-center justify-center text-sm flex-shrink-0 ${
-                  isComplete ? 'bg-green-50 border border-green-200' :
-                  isActive   ? 'bg-orange-50 border border-orange-300' :
-                  'bg-gray-50 border border-gray-200'
-                }`}>
-                  {isComplete ? '✓' : stage.icon}
-                </div>
-                <div className="flex-1">
-                  <p className={`text-sm font-medium ${isComplete ? 'text-green-500' : isActive ? 'text-[#222222]' : 'text-gray-400'}`}>
-                    {stage.label}
-                    {isActive && !isDone && (
-                      <span className="ml-2 inline-flex gap-0.5">
-                        {[0, 1, 2].map(d => (
-                          <motion.span key={d} animate={{ opacity: [0.3, 1, 0.3] }} transition={{ duration: 1, repeat: Infinity, delay: d * 0.2 }}
-                            className="w-1 h-1 rounded-full bg-[#F78C25] inline-block" />
-                        ))}
-                      </span>
-                    )}
-                  </p>
-                  {isActive && <p className="text-xs text-gray-400 mt-0.5">{stage.desc}</p>}
-                </div>
-              </motion.div>
-            )
-          })}
-        </div>
-
-        {lastChecked && <p className="text-gray-300 text-xs mt-4 text-right">Last checked: {lastChecked}</p>}
-      </div>
-
-      {/* Done */}
+      {/* Done Action */}
       <AnimatePresence>
         {isDone && (
-          <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} className="text-center">
-            <p className="text-green-500 font-semibold text-lg mb-1">🎉 Printing Completed!</p>
-            <p className="text-gray-400 text-sm mb-2">Please collect your document from the printer.</p>
-            {orderId && <p className="text-gray-300 text-xs mb-6 font-mono">Order ID: {orderId}</p>}
-            <button onClick={onReset} className="px-6 py-3 bg-[#F78C25] hover:bg-[#e07010] text-white font-semibold rounded-xl transition-all">
+          <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} className="text-center mt-6">
+            <button
+              onClick={onReset}
+              className="w-full sm:w-auto px-8 py-3.5 bg-[#F78C25] hover:bg-[#e07010] text-white font-bold rounded-2xl transition-all shadow-md shadow-orange-500/20 active:scale-98 cursor-pointer"
+            >
               Print Another Document
             </button>
           </motion.div>
@@ -280,3 +445,4 @@ export default function PrintStatus({ fileInfo, settings, orderId, onReset, onVi
     </motion.section>
   )
 }
+
